@@ -98,6 +98,108 @@ A flash sale platform for high-traffic scenarios with limited stock management.
 
 **Problem**: Need ACID compliance and complex queries for user management and audit trails.
 
+## Quick Start
+
+### Prerequisites
+- Docker and Docker Compose
+- Node.js 18+ and npm
+- Git Bash (for running shell scripts)
+
+### 1. Start Infrastructure
+```bash
+# Start all services (PostgreSQL, Redis, Kafka, Graylog, etc.)
+docker-compose up -d
+
+# Wait for all services to be healthy
+docker-compose ps
+```
+
+### 2. Start Backend
+```bash
+cd backend
+npm install
+npm run start:dev
+```
+
+### 3. Start Frontend
+```bash
+cd frontend
+npm install
+npm start
+```
+
+### 4. Run Tests
+```bash
+# Run all tests sequentially (recommended)
+cd frontend
+bash run-all-tests-sequential.sh
+
+# Or run individual test suites
+npm run test:e2e:simple      # Basic purchase flow
+npm run test:e2e:stress      # Stress testing
+npm run test:e2e:stress:5stock # 5 stock stress test
+```
+
+## Graylog Setup
+
+### Problem
+Graylog is running but showing "0 in / 0 out" because no inputs are configured to receive logs.
+
+### Solution
+I've created automatic setup scripts that will configure Graylog inputs and send test logs.
+
+### Option 1: Automatic Setup (Recommended)
+The docker-compose now includes a `graylog-setup` service that automatically configures inputs.
+
+### Option 2: Manual Setup Scripts
+Run one of these scripts after Graylog is running:
+
+**For Git Bash/Linux:**
+```bash
+# Make script executable
+chmod +x setup-graylog.sh
+
+# Run the setup script
+./setup-graylog.sh
+```
+
+**For Windows PowerShell:**
+```powershell
+# Run the PowerShell script
+.\setup-graylog.ps1
+```
+
+**For Windows Command Prompt:**
+```cmd
+# Run the batch file
+setup-graylog.bat
+```
+
+### What the Scripts Do
+1. **Wait for Graylog** to be fully ready
+2. **Create GELF UDP Input** on port 12201 (mapped to 19201)
+3. **Create Syslog TCP Input** on port 1514 (mapped to 19114)
+4. **Send test logs** including:
+   - Flash sale backend logs
+   - Flash sale frontend logs
+   - Cypress test completion logs
+   - System test messages
+
+### Verify Setup
+After running the setup:
+1. Open Graylog UI: http://localhost:19000
+2. Login with: `admin` / `admin`
+3. Go to **Search** tab - you should see logs
+4. Check **System > Inputs** - inputs should be running
+5. The "Message Count" graph should show activity
+
+### Troubleshooting
+If you still don't see logs:
+- Check **System > Inputs** to ensure inputs are running
+- Check **System > Indices** to ensure indices are created
+- Wait a few more minutes for Elasticsearch indexing
+- Check the setup script output for any errors
+
 **Solution**: PostgreSQL for persistent storage and complex operations.
 
 **Benefits**:
@@ -227,581 +329,106 @@ Reset Request → Database Reset → Redis Clear → Cache Invalidation
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
-- Docker & Docker Compose
-- Git
+- Docker and Docker Compose
+- Node.js 18+ and npm
+- Git Bash (for running shell scripts)
 
-### Step-by-Step Setup
+### 1. Start Infrastructure
+```bash
+# Start all services (PostgreSQL, Redis, Kafka, Graylog, etc.)
+docker-compose up -d
 
-#### 1. Clone and Install Dependencies
-   ```bash
-# Clone repository
-   git clone <repository-url>
-   cd flash-sale-system
-
-# Install all dependencies
-npm run install:all
-   ```
-
-#### 2. Environment Setup
-   ```bash
-# Create .env files from examples (Windows)
-npm run env:setup
-
-# OR for Mac/Linux
-npm run env:setup:unix
-
-# OR cross-platform (auto-detects OS)
-npm run env:setup:cross
-   ```
-
-#### 3. Start Infrastructure (Docker Services)
-   ```bash
-# Start PostgreSQL, Redis, Kafka, and other services
-   npm run infra:up
-
-# Wait for all services to be ready (check status)
+# Wait for all services to be healthy
 docker-compose ps
-
-# Verify services are running
-curl http://localhost:3001/health  # Backend health check
 ```
 
-#### 4. Start Backend Server
-   ```bash
-# In a new terminal
-npm run dev:backend
-
-# Wait for backend to start (you'll see "Application is running on: http://localhost:3001")
-# Backend will automatically:
-# - Connect to database
-# - Run migrations
-# - Seed initial data
-# - Start API server
-```
-
-#### 5. Start Frontend Application
-   ```bash
-# In another new terminal
-npm run dev:frontend
-
-# Wait for frontend to start (you'll see "Local: http://localhost:3000")
-```
-
-#### 6. Access the Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3001
-- **Database**: localhost:5432 (PostgreSQL)
-- **Redis**: localhost:6379
-- **Kafka**: localhost:29092
-
-### Alternative Commands
-
-#### Start Everything at Once
-   ```bash
-# Start infrastructure and both servers
-   npm run dev
-   ```
-
-#### Individual Service Management
-```bash
-# Environment setup
-npm run env:setup         # Create .env files (Windows)
-npm run env:setup:unix    # Create .env files (Mac/Linux)
-npm run env:setup:cross   # Create .env files (cross-platform)
-
-# Infrastructure only
-npm run infra:up          # Start all services
-npm run infra:down        # Stop all services
-npm run infra:reset       # Reset and restart services
-npm run infra:logs        # View service logs
-
-# Backend only
-npm run dev:backend       # Start backend in dev mode
-npm run start:backend     # Start backend in production mode
-npm run build:backend     # Build backend
-
-# Frontend only
-npm run dev:frontend      # Start frontend in dev mode
-npm run start:frontend    # Start frontend in production mode
-npm run build:frontend    # Build frontend
-```
-
-#### Database Management
-```bash
-# Database setup and seeding
-cd backend
-npm run db:setup          # Complete database setup
-npm run db:seed           # Seed test users only
-
-# Database reset
-npm run db:reset          # Clear all data
-```
-
-### Verification Steps
-
-#### 1. Check Infrastructure Status
-```bash
-# Check if all containers are running
-docker-compose ps
-
-# Expected output:
-# Name                    Command               State           Ports
-# flash-sale-kafka       /bin/sh -c rpk redp ...   Up      0.0.0.0:29092->9092/tcp
-# flash-sale-postgres    docker-entrypoint.sh postgres    Up      0.0.0.0:5432->5432/tcp
-# flash-sale-redis       docker-entrypoint.sh redis ...   Up      0.0.0.0:6379->6379/tcp
-```
-
-#### 2. Test Backend API
-```bash
-# Check flash sale status
-curl http://localhost:3001/api/flash-sale/status
-
-# Expected response:
-# {
-#   "status": "active",
-#   "currentStock": 5,
-#   "maxStock": 5,
-#   "startTime": "2024-01-01T10:00:00.000Z",
-#   "endTime": "2024-12-31T12:00:00.000Z"
-# }
-```
-
-#### 3. Test Frontend
-- Open http://localhost:3000 in browser
-- Should see "Flash Sale System" title
-- Status should show current stock information
-- Purchase form should be visible
-
-### Troubleshooting Common Issues
-
-#### Port Conflicts
-```bash
-# Kill processes using ports 3000/3001
-lsof -ti:3000 | xargs kill -9
-lsof -ti:3001 | xargs kill -9
-```
-
-#### Docker Issues
-```bash
-# Reset Docker services
-npm run infra:reset
-
-# Check Docker logs
-npm run infra:logs
-
-# Restart Docker Desktop (if on Mac/Windows)
-```
-
-#### Database Connection Issues
-```bash
-# Check PostgreSQL container
-docker-compose logs postgres
-
-# Reset database
-cd backend && npm run db:setup
-```
-
-#### Redis Connection Issues
-```bash
-# Check Redis container
-docker-compose logs redis
-
-# Test Redis connection
-docker-compose exec redis redis-cli ping
-# Should return: PONG
-```
-
-#### Kafka Connection Issues
-```bash
-# Check Kafka container
-docker-compose logs kafka
-
-# Test Kafka topics
-docker-compose exec kafka rpk topic list
-```
-
-### Development Workflow
-
-#### 1. Daily Development
-```bash
-# Start infrastructure once (morning)
-npm run infra:up
-
-# Start backend and frontend
-npm run dev:backend    # Terminal 1
-npm run dev:frontend   # Terminal 2
-```
-
-#### 2. Testing Changes
-```bash
-# Run tests after code changes
-npm test               # Backend tests
-cd frontend && npm test # Frontend tests
-npm run test:e2e:simple # E2E tests (safe)
-```
-
-**Note**: Always use specific test commands like `npm run test:e2e:simple` or `npm run test:e2e:all` instead of the old `npm run test:e2e` command to prevent backend crashes.
-
-#### 3. Reset for Testing
-```bash
-# Reset system state
-curl -X POST http://localhost:3001/api/flash-sale/reset
-
-# Or use frontend reset button
-# Navigate to "List of Users" tab → Click "Reset System + Auto-Seed Users"
-```
-
-#### 4. Stop Development
-```bash
-# Stop servers (Ctrl+C in respective terminals)
-# Stop infrastructure
-npm run infra:down
-```
-
-### Production Deployment
-
-#### Build for Production
-```bash
-# Build both applications
-npm run build
-
-# Start production servers
-npm run start:backend
-npm run start:frontend
-```
-
-#### Docker Production
-```bash
-# Build and run with Docker
-docker-compose -f docker-compose.prod.yml up --build
-```
-
-## Testing
-
-### Complete Test Suite
-
-The project includes testing strategy covering unit, integration, and E2E tests:
-
-#### Backend Tests (Unit & Integration)
+### 2. Start Backend
 ```bash
 cd backend
-
-# Run all tests
-npm test
-
-# Run tests with coverage report
-npm run test:cov
-
-# Run tests in watch mode (development)
-npm run test:watch
-
-# Run E2E tests
-npm run test:e2e
+npm install
+npm run start:dev
 ```
 
-#### Frontend Tests (E2E with Cypress)
+### 3. Start Frontend
 ```bash
 cd frontend
-
-# Run simple E2E tests (safe)
-npm run test:e2e:simple
-
-# Run stress tests (recommended)
-npm run test:e2e:stress:5stock
-
-# Run full stress test suite
-npm run test:e2e:stress
-
-# Run all tests sequentially (safest)
-npm run test:e2e:all
-
-# Open Cypress GUI for manual testing
-npm run cypress:open
+npm install
+npm start
 ```
 
-**Important Note**: The old `npm run test:e2e` command has been removed because it runs all tests simultaneously without proper backend recovery, which can crash the server. Always use the specific test commands above for safe testing.
-
-#### Test Coverage Summary
-- **Backend**: Test suite covering business logic, architecture, and data consistency (100% working)
-- **Frontend**: E2E testing with Cypress
-- **Integration**: Redis, Kafka, and database interaction testing
-- **Performance**: Stress testing for high-throughput scenarios
-
-#### Current Test Status
-- **Frontend E2E Tests**: Fully working
-- **Backend Unit Tests**: Fully working with good coverage
-- **Stress Tests**: Working with proper configuration
-- **Stock Preset System**: New feature for easy stress testing
-
-#### Stock Preset Testing
-The system now includes Quick Stock Presets for easy stress testing:
-
-- **Small (5)**: Perfect for testing basic functionality and small concurrency
-- **Medium (100)**: Good for testing medium-scale scenarios
-- **Large (1000)**: Ideal for large-scale stress testing
-- **Extreme (10K)**: For extreme load testing scenarios
-
-Each preset automatically:
-- Sets the appropriate stock level
-- Seeds the corresponding number of users
-- Provides consistent testing environment
-
-#### Cypress Stress Tests
-The system includes comprehensive stress tests that utilize stock presets:
-
-- **Basic Stress Test**: Tests 100 users with 5 stock items
-- **Race Condition Test**: Tests burst requests with 5 stock items  
-- **Stock Preset Tests**: Tests different stock levels (5, 100, 1000 items)
-- **Preset Switching Test**: Demonstrates changing stock levels during testing
-
-All tests now use the stock preset system for consistent and reliable testing.
-
-
-
-## Core Features
-
-- **Flash Sale Management**: Configurable start/end times
-- **Stock Control**: Limited inventory with real-time updates
-- **User Validation**: One item per user enforcement
-- **High Throughput**: Redis-first with database fallback
-- **Event-Driven**: Kafka for async database sync
-- **System Reset**: Complete state reset for testing
-
-## API Endpoints
-
-```
-GET    /api/flash-sale/status     - Check sale status
-POST   /api/flash-sale/purchase   - Attempt purchase
-GET    /api/flash-sale/purchase/:username - Check user status
-POST   /api/flash-sale/reset      - Reset system
-POST   /api/flash-sale/stock-preset/:preset - Set stock preset (small/medium/large/extreme)
-POST   /api/users/seed            - Seed test users
-```
-
-## Testing Strategy
-
-### Unit & Integration Tests (Backend)
-
-The backend includes unit and integration tests covering business logic and architectural components:
-
-#### Test Coverage
+### 4. Run Tests
 ```bash
-# Run all backend tests
-npm test
+# Run all tests sequentially (recommended)
+cd frontend
+bash run-all-tests-sequential.sh
 
-# Run tests with coverage report
-npm run test:cov
-
-# Run tests in watch mode (development)
-npm run test:watch
-
-# Run E2E tests
-npm run test:e2e
-
-# Run stress tests
-npm run stress:test
+# Or run individual test suites
+npm run test:e2e:simple      # Basic purchase flow
+npm run test:e2e:stress      # Stress testing
+npm run test:e2e:stress:5stock # 5 stock stress test
 ```
 
-#### Test Categories
+## Graylog Setup
 
-**1. FlashSaleService Tests** (`flash-sale.service.test.ts`)
-- Business logic validation
-- Purchase attempt scenarios (upcoming, active, ended sales)
-- User validation and duplicate purchase prevention
-- Error handling and edge cases
-- Repository interaction testing
+### Problem
+Graylog is running but showing "0 in / 0 out" because no inputs are configured to receive logs.
 
-**2. High-Throughput Architecture Tests** (`high-throughput-architecture.test.ts`)
-- Redis operations and caching
-- Kafka event publishing and handling
-- Transaction service with Redis-first approach
-- Concurrent purchase handling
-- Service integration testing
+### Solution
+I've created automatic setup scripts that will configure inputs and send test logs.
 
-**3. Stock Consistency Tests** (`stock-consistency.test.ts`)
-- Data integrity validation
-- Stock management accuracy
-- Transaction rollback scenarios
-- User purchase validation
-- Database consistency checks
+### Option 1: Automatic Setup (Recommended)
+The docker-compose now includes a `graylog-setup` service that automatically configures inputs.
 
-**4. Test Setup** (`setup.ts`)
-- Global test configuration
-- Test environment setup
-- Mock service configuration
-- Test database initialization
+### Option 2: Manual Setup Scripts
+Run one of these scripts after Graylog is running:
 
-#### Test Architecture Benefits
-- **Mocked Dependencies**: Isolated testing of business logic
-- **Repository Pattern**: Interface-based testing for data layer
-- **Service Integration**: End-to-end service interaction testing
-- **Error Scenarios**: Failure mode testing
-- **Performance Validation**: High-throughput scenario testing
-
-#### How Tests Support Architecture
-- **Redis-First Strategy**: Tests validate Redis operations and fallback scenarios
-- **Kafka Integration**: Event publishing and handling are tested
-- **Database Consistency**: Transaction rollback and data integrity validation
-- **High Throughput**: Concurrent purchase scenarios with race condition testing
-- **Error Handling**: Network failures, service unavailability, and edge cases
-
-#### Test Implementation Details
-- **Mocked Dependencies**: All external services are properly mocked for isolated testing
-- **Repository Pattern**: Interface-based testing ensures data layer abstraction
-- **Service Integration**: End-to-end service interaction testing with proper dependency injection
-- **Error Scenarios**: Failure mode testing including network and service failures
-- **Performance Validation**: High-throughput scenario testing with race condition detection
-
-#### Test Coverage Results
-The backend tests provide coverage of business logic:
-- **FlashSaleService**: 84.21% statement coverage, 62.5% branch coverage
-- **TransactionService**: 36.45% statement coverage, 35.29% branch coverage  
-- **Entity Classes**: 85%+ statement coverage with validation testing
-- **Integration Testing**: Redis, Kafka, and database interaction scenarios
-- **Error Handling**: Failure mode and edge case testing
-
-### E2E Tests with Cypress
-- Core flow testing: reset system, purchase, stock depletion, duplicate purchase prevention
-- Run with: `npm run test:e2e:simple`
-
-#### Test Data Management
-- **Automatic System Reset**: Each test starts with a clean state
-- **User Seeding**: Pre-populated test users for consistent testing
-- **Stock Management**: 5-item stock limit for predictable test scenarios
-- **Environment Isolation**: Separate test databases and Redis instances
-
-#### Test Scenarios Covered
-- **Happy Path**: Successful purchase flow with stock validation
-- **Edge Cases**: Duplicate purchases, insufficient stock, user validation
-- **System Reset**: Complete state restoration and user re-seeding
-- **Concurrent Access**: Multiple users attempting simultaneous purchases
-- **Error Recovery**: Network failures and service unavailability
-
-### Stress Tests
-
-The stress tests show that the system can handle high-volume concurrent users attempting to purchase limited stock items without failing, and that concurrency controls work properly.
-
-#### Test Scenarios
-
-1. **1000 Concurrent Users Test**
-   - **Objective**: Test system with 1000 concurrent users trying to purchase 5 stock items
-   - **Expected Result**: Exactly 5 successful purchases, 995 failed purchases
-   - **Duration**: ~30 seconds
-   - **Command**: `npm run test:e2e:stress`
-
-2. **5 Stock Items Focused Test (Recommended)**
-   - **Objective**: Test system with 100 concurrent users and 5 stock items
-   - **Expected Result**: Exactly 5 successful purchases, 95 failed purchases
-   - **Duration**: ~15 seconds
-   - **Command**: `npm run test:e2e:stress:5stock`
-
-3. **Race Condition Test**
-   - **Objective**: Test burst of 10 simultaneous requests
-   - **Expected Result**: Exactly 5 successful purchases, 5 failed purchases
-   - **Duration**: ~10 seconds
-   - **Command**: `npm run test:e2e:stress`
-
-#### What the Tests Verify
-
-- **Stock Management**: Initial stock is exactly 5 items, final stock is 0, no overselling occurs
-- **Concurrency Control**: Exactly 5 users succeed in purchasing, remaining users fail appropriately
-- **System Integrity**: Redis and PostgreSQL consistency maintained, Kafka events properly managed
-- **Performance Metrics**: Response time analysis, throughput calculation, system behavior under load
-
-#### Expected Results
-
-**5 Stock Test Results**:
-```
-Total Users: 100
-Successful Purchases: 5
-Failed Purchases: 95
-Success Rate: 5.00%
-```
-
-**Performance Metrics**:
-- **Response Time**: < 100ms average
-- **Throughput**: > 100 requests/second
-- **Total Duration**: < 15 seconds
-
-#### Running Stress Tests
-
-**Quick 5 Stock Test (Recommended)**:
+**For Git Bash/Linux:**
 ```bash
-npm run test:e2e:stress:5stock
+# Make script executable
+chmod +x setup-graylog.sh
+
+# Run the setup script
+./setup-graylog.sh
 ```
 
-**Full Stress Test Suite**:
-```bash
-npm run test:e2e:stress
+**For Windows PowerShell:**
+```powershell
+# Run the PowerShell script
+.\setup-graylog.ps1
 ```
 
-**Run All Tests Sequentially**:
-```bash
-# Cross-platform (works on Windows, Mac, Linux)
-npm run test:e2e:all
+**For Windows Command Prompt:**
+```cmd
+# Run the batch file
+setup-graylog.bat
 ```
 
-**Open Cypress for Manual Testing**:
-```bash
-npm run cypress:open
-```
+### What the Scripts Do
+1. **Wait for Graylog** to be fully ready
+2. **Create GELF UDP Input** on port 12201 (mapped to 19201)
+3. **Create Syslog TCP Input** on port 1514 (mapped to 19114)
+4. **Send test logs** including:
+   - Flash sale backend logs
+   - Flash sale frontend logs
+   - Cypress test completion logs
+   - System test messages
 
-#### Running All Tests Sequentially
+### Verify Setup
+After running the setup:
+1. Open Graylog UI: http://localhost:19000
+2. Login with: `admin` / `admin`
+3. Go to **Search** tab - you should see logs
+4. Check **System > Inputs** - inputs should be running
+5. The "Message Count" graph should show activity
 
-The system now supports running all Cypress test suites in sequence with proper backend recovery between each suite. This ensures that all tests can complete without overwhelming the backend server.
+### Troubleshooting
+If you still don't see logs:
+- Check **System > Inputs** to ensure inputs are running
+- Check **System > Indices** to ensure indices are created
+- Wait a few more minutes for Elasticsearch indexing
+- Check the setup script output for any errors
 
-**Cross-Platform Command**:
-```bash
-npm run test:e2e:all
-```
-
-**What This Does**:
-1. Runs `flash-sale.cy.ts` first
-2. Waits 15 seconds for backend to recover
-3. Runs `stress-test-5stock.cy.ts`
-4. Waits 15 seconds for backend to recover
-5. Runs `stress-test.cy.ts`
-6. Waits 20 seconds for backend to recover
-7. Runs `flash-sale.cy.ts` again as final test
-
-**Cross-Platform Compatibility**:
-- **Windows with Git Bash**: Uses `sleep` command (optimal for Git Bash users)
-- **macOS/Linux**: Uses `sleep` command (native Unix command)
-- **Simple and Reliable**: No complex fallback logic needed
-- **Git Bash Optimized**: Perfect for Windows users who prefer Git Bash over PowerShell
-
-**Expected Duration**: Approximately 3-5 minutes total
-**Backend Recovery**: Automatic delays between test suites
-
-#### Architecture Benefits Shown
-
-- **Redis-First Strategy**: Immediate response times under load, stock management, atomic operations prevent race conditions
-- **Kafka Event Handling**: Asynchronous database updates, event ordering maintained, fault tolerance for high throughput
-- **PostgreSQL Consistency**: Eventual consistency with Redis, transaction integrity, audit trail for all purchases
-
-#### Production Readiness
-
-The stress tests verify that the system is ready for production by demonstrating:
-
-1. **Scalability**: Handles 1000+ concurrent users
-2. **Reliability**: No data corruption under load
-3. **Performance**: Sub-second response times
-4. **Consistency**: Stock management accuracy
-5. **Monitoring**: Logging and metrics
-
-#### Troubleshooting Stress Tests
-
-**Common Issues**:
-1. **Backend Not Running**: Error: `connect ECONNREFUSED 127.0.0.1:3001` - Solution: Start backend with `npm run dev`
-2. **Redis Connection Issues**: Error: `Redis connection failed` - Solution: Ensure Docker Redis is running with `npm run infra:up`
-3. **Test Timeout**: Error: `Timed out retrying after 15000ms` - Solution: Increase timeout in test or check system performance
-
-**Performance Issues**:
-1. **Slow Response Times**: Check Redis performance, verify database connection pooling, monitor system resources
-2. **Test Failures**: Ensure clean system state before testing, reset system between test runs, check logs for errors
-
-## Project Structure
+## System Architecture
 
 ```
 ├── backend/                 # NestJS API server
@@ -911,3 +538,408 @@ For technical questions or issues:
 2. Review logs: `npm run infra:logs`
 3. Reset system: `npm run infra:reset`
 4. Check container status: `docker-compose ps`
+
+---
+
+# System Architecture Diagrams
+
+## 1. High-Level System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           FLASH SALE SYSTEM ARCHITECTURE                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   Frontend      │    │   Backend       │    │   Infrastructure Layer      │ │
+│  │   (React)       │◄──►│   (NestJS)      │◄──►│   (Docker Services)        │ │
+│  │                 │    │                 │    │                             │ │
+│  │ • Status Display│    │ • API Server    │    │ • PostgreSQL Database      │ │
+│  │ • Purchase Form │    │ • Business Logic│    │ • Redis Cache              │ │
+│  │ • User Mgmt     │    │ • Data Layer    │    │ • Kafka Message Queue      │ │
+│  │ • Stock Presets │    │ • Event System  │    │ • Load Balancer (Future)   │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Monitoring    │              │                     │ │
+│           │              │   & Logging     │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • Health Checks│              │                     │ │
+│           │              │ • Performance   │              │                     │ │
+│           │              │ • Error Logs    │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 2. Data Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              DATA FLOW ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   User Request  │    │   Redis Cache   │    │   PostgreSQL Database      │ │
+│  │                 │───►│   (Fast Path)   │───►│   (Persistent Storage)     │ │
+│  │ • Purchase      │    │                 │    │                             │ │
+│  │ • Status Check  │    │ • Stock Count   │    │ • User Data                │ │
+│  │ • User Info     │    │ • User Cache    │    │ • Purchase Log             │ │
+│  │                 │    │ • Session Data  │    │ • Transaction History      │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Kafka Queue   │              │                     │ │
+│           │              │   (Async Sync)  │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • Purchase     │              │                     │ │
+│           │              │   Events       │              │                     │ │
+│           │              │ • Stock Updates│              │                     │ │
+│           │              │ • User Actions │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           EVENT DRIVEN FLOW                                │ │
+│  │                                                                             │ │
+│  │  User Action → Redis Update → Kafka Event → Async DB Sync → Cache Update   │ │
+│  │                                                                             │ │
+│  │  • Immediate Response (Redis)                                              │ │
+│  │  • Event Persistence (Kafka)                                              │ │
+│  │  • Data Consistency (PostgreSQL)                                          │ │
+│  │  • Cache Synchronization (Redis)                                          │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 3. Component Interaction Detail
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           COMPONENT INTERACTION DETAIL                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   API Layer     │    │   Service Layer │    │   Data Layer                │ │
+│  │                 │    │                 │    │                             │ │
+│  │ • Controllers   │◄──►│ • Business      │◄──►│ • Repositories              │ │
+│  │ • Validation    │    │   Logic         │    │ • Redis Operations          │ │
+│  │ • Rate Limiting│    │ • Transaction   │    │ • PostgreSQL Queries        │ │
+│  │ • Auth/Guard   │    │   Management    │    │ • Kafka Producers           │ │
+│  │ • Middleware    │    │ • Event         │    │ • Cache Management          │ │
+│  └─────────────────┘    │   Handling      │    └─────────────────────────────┘ │
+│           │              └─────────────────┘              │                     │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Event System  │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • Async Events  │              │                     │ │
+│           │              │ • Error Handling│              │                     │ │
+│           │              │ • Retry Logic   │              │                     │ │
+│           │              │ • Event Ordering│              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 4. Purchase Flow Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              PURCHASE FLOW ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   User Request  │    │   Redis Cache   │    │   Kafka Event Queue        │ │
+│  │                 │───►│   (Fast Path)   │───►│   (Async Processing)       │ │
+│  │ • Purchase      │    │                 │    │                             │ │
+│  │   Attempt       │    │ • Stock Check   │    │ • Purchase Event           │ │
+│  │                 │    │ • Atomic        │    │ • Stock Update Event       │ │
+│  │                 │    │   Decrement     │    │ • User Update Event        │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Response      │              │                     │ │
+│           │              │   (Immediate)   │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • Success/Fail  │              │                     │ │
+│           │              │ • Stock Status  │              │                     │ │
+│           │              │ • User Info     │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           ASYNC PROCESSING                                 │ │
+│  │                                                                             │ │
+│  │  Kafka Consumer → Database Update → Cache Invalidation → Event Completion  │ │
+│  │                                                                             │ │
+│  │  • Event Ordering (Kafka)                                                  │ │
+│  │  • ACID Compliance (PostgreSQL)                                            │ │
+│  │  • Cache Consistency (Redis)                                               │ │
+│  │  • Audit Trail (Event Log)                                                 │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 5. High-Throughput Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           HIGH-THROUGHPUT ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   Load Balancer │    │   API Servers   │    │   Shared Resources         │ │
+│  │   (Future)      │    │   (Multiple)    │    │                             │ │
+│  │                 │───►│                 │───►│ • Redis Cluster            │ │
+│  │ • Request       │    │ • Stateless     │    │ • Kafka Cluster            │ │
+│  │   Distribution  │    │ • Auto-scaling  │    │ • PostgreSQL Read Replicas │ │
+│  │ • Health Check  │    │ • Load Sharing  │    │ • Shared Cache             │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Performance    │              │                     │ │
+│           │              │   Metrics       │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • Response Time │              │                     │ │
+│           │              │ • Throughput    │              │                     │ │
+│           │              │ • Error Rate    │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           SCALABILITY FEATURES                             │ │
+│  │                                                                             │ │
+│  │  • Horizontal Scaling (API Servers)                                       │ │
+│  │  • Redis Cluster (Cache Distribution)                                     │ │
+│  │  • Kafka Partitions (Parallel Processing)                                 │ │
+│  │  • Database Read Replicas (Query Distribution)                            │ │
+│  │  • Auto-scaling (Based on Load)                                           │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 6. Testing Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              TESTING ARCHITECTURE                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   Unit Tests    │    │ Integration     │    │   E2E Tests                │ │
+│  │   (Jest)        │    │ Tests           │    │   (Cypress)                │ │
+│  │                 │───►│                 │───►│                             │ │
+│  │ • Service Logic │    │ • API Testing   │    │ • User Journey             │ │
+│  │ • Business      │    │ • Database      │    │ • Stress Testing           │ │
+│  │   Rules         │    │ • Stock Preset Testing     │ │
+│  │ • Validation    │    │ • Redis/Kafka   │    │ • Race Condition Testing   │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Test Data     │              │                     │ │
+│           │              │   Management    │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • User Seeding  │              │                     │ │
+│           │              │ • Stock Presets │              │                     │ │
+│           │              │ • Reset System  │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           TEST EXECUTION STRATEGY                          │ │
+│  │                                                                             │ │
+│  │  • Sequential Execution (Prevents Backend Overload)                        │ │
+│  │  • Backend Recovery (Delays Between Test Suites)                           │ │
+│  │  • Stock Preset System (Consistent Test Environment)                       │ │
+│  │  • Cross-Platform Support (Windows Git Bash, Mac, Linux)                   │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 7. Deployment Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                             DEPLOYMENT ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   Development   │    │   Staging       │    │   Production               │ │
+│  │   Environment   │    │   Environment   │    │   Environment              │ │
+│  │                 │───►│                 │───►│                             │ │
+│  │ • Local Docker │    │ • Cloud Docker  │    │ • Kubernetes Cluster       │ │
+│  │ • Single Node  │    │ • Multi-Node    │    │ • Auto-scaling             │ │
+│  │ • Manual Tests │    │ • Automated     │    │ • Load Balancing            │ │
+│  │ • Debug Mode   │    │   Testing       │    │ • Monitoring & Alerting    │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   CI/CD Pipeline│              │                     │ │
+│           │              │                 │              │                     │ │
+│           │              │ • Code Commit   │              │                     │ │
+│           │              │ • Auto Build    │              │                     │ │
+│           │              │ • Auto Test     │              │                     │ │
+│           │              │ • Auto Deploy   │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           INFRASTRUCTURE AS CODE                           │ │
+│  │                                                                             │ │
+│  │  • Docker Compose (Development)                                            │ │
+│  │  • Kubernetes Manifests (Production)                                      │ │
+│  │  • Terraform Scripts (Infrastructure)                                     │ │
+│  │  • Helm Charts (Application Deployment)                                    │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 8. Security Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              SECURITY ARCHITECTURE                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   Frontend      │    │   API Gateway   │    │   Backend Services         │ │
+│  │   Security      │    │   Security      │    │   Security                  │ │
+│  │                 │───►│                 │───►│                             │ │
+│  │ • Input         │    │ • Rate Limiting │    │ • Authentication            │ │
+│  │   Validation    │    │ • CORS Policy   │    │ • Authorization             │ │
+│  │ • XSS           │    │ • Request       │    │ • Input Sanitization       │ │
+│  │   Prevention    │    │   Validation    │    │ • SQL Injection Prevention │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Data Security │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • Encryption    │              │                     │ │
+│           │              │ • Access Control│              │                     │ │
+│           │              │ • Audit Logging │              │                     │ │
+│           │              │ • Data Privacy  │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           SECURITY MEASURES                                │ │
+│  │                                                                             │ │
+│  │  • HTTPS/TLS Encryption                                                    │ │
+│  │  • JWT Token Authentication                                                │ │
+│  │  • Role-Based Access Control (RBAC)                                        │ │
+│  │  • API Rate Limiting                                                       │ │
+│  │  • Input Validation & Sanitization                                         │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 9. Performance Characteristics
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                            PERFORMANCE CHARACTERISTICS                         │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   Response Time │    │   Throughput    │    │   Scalability              │ │
+│  │   Breakdown     │    │   Capabilities  │    │   Metrics                   │ │
+│  │                 │    │                 │    │                             │
+│  │ • Redis Hit:    │    │ • Redis:        │    │ • Horizontal Scaling       │ │
+│  │   1-5ms (95%)   │    │   100K+ ops/sec │    │   (API Servers)            │ │
+│  │ • Redis Miss:   │    │ • Kafka:        │    │ • Redis Cluster            │ │
+│  │   50-100ms (5%) │    │   10K+ events/s │    │   (Cache Distribution)     │ │
+│  │ • Kafka Event:  │    │ • PostgreSQL:   │    │ • Kafka Partitions        │ │
+│  │   10-20ms       │    │   1K+ queries/s │    │   (Parallel Processing)    │ │
+│  │ • DB Update:    │    │ • Overall:      │    │ • Database Read Replicas   │ │
+│  │   100-200ms     │    │   1K+ users     │    │   (Query Distribution)     │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           PERFORMANCE OPTIMIZATIONS                        │ │
+│  │                                                                             │ │
+│  │  • Redis-First Strategy (99% cache hit rate)                              │ │
+│  │  • Asynchronous Processing (Kafka events)                                  │ │
+│  │  • Connection Pooling (Database connections)                               │ │
+│  │  • Load Balancing (Request distribution)                                   │ │
+│  │  • Auto-scaling (Dynamic resource allocation)                              │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 10. System Integration Points
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                            SYSTEM INTEGRATION POINTS                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────────┐ │
+│  │   External      │    │   Internal      │    │   Monitoring &              │ │
+│  │   APIs          │    │   Services      │    │   Observability             │ │
+│  │                 │    │                 │    │                             │ │
+│  │ • Payment       │    │ • User Service  │    │ • Health Checks             │ │
+│  │   Gateway       │    │ • Stock Service │    │ • Performance Metrics       │ │
+│  │ • Notification  │    │ • Event Service │    │ • Error Tracking            │ │
+│  │   Service       │    │ • Cache Service │    │ • Distributed Tracing       │ │
+│  │ • Analytics     │    │ • Auth Service  │    │ • Log Aggregation           │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────────┘ │
+│           │                       │                       │                     │
+│           │                       ▼                       │                     │
+│           │              ┌─────────────────┐              │                     │
+│           │              │   Data          │              │                     │ │
+│           │              │   Integration   │              │                     │ │
+│           │              │                 │              │                     │
+│           │              │ • ETL Pipelines │              │                     │ │
+│           │              │ • Data Sync     │              │                     │ │
+│           │              │ • Backup        │              │                     │ │
+│           │              │ • Recovery      │              │                     │ │
+│           └──────────────┴─────────────────┴──────────────┘                     │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           INTEGRATION PATTERNS                             │ │
+│  │                                                                             │ │
+│  │  • RESTful APIs (Synchronous communication)                                │ │
+│  │  • Event-driven (Asynchronous communication)                               │ │
+│  │  • Message Queues (Reliable message delivery)                              │ │
+│  │  • Webhooks (Real-time notifications)                                      │ │
+│  │  • GraphQL (Flexible data querying)                                        │ │
+│  └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Architecture Summary
+
+This system diagram shows a **High-Throughput Flash Sale System** with:
+
+### **Core Architecture**
+- **Frontend**: React with TypeScript and Tailwind CSS
+- **Backend**: NestJS with TypeScript and TypeORM
+- **Infrastructure**: Docker with PostgreSQL, Redis, and Kafka
+
+### **Key Design Principles**
+- **Redis-First Strategy**: 99% cache hit rate for sub-millisecond responses
+- **Event-Driven Architecture**: Asynchronous processing with Kafka
+- **Horizontal Scaling**: Multiple API servers with load balancing
+- **High Availability**: Fault tolerance with fallback mechanisms
+
+### **Performance Characteristics**
+- **Response Time**: 1-5ms for cached data, 50-100ms for database queries
+- **Throughput**: 1000+ concurrent users, 100K+ Redis operations/second
+- **Scalability**: Auto-scaling with Redis clusters and Kafka partitions
+
+### **Testing Strategy**
+- **Unit Tests**: Jest for business logic validation
+- **Integration Tests**: API and database interaction testing
+- **E2E Tests**: Cypress for user journey validation
+- **Stress Tests**: High-concurrency testing with stock presets
+
+### **Deployment**
+- **Development**: Docker Compose for local development
+- **Production**: Kubernetes with auto-scaling and monitoring
+- **CI/CD**: Automated testing and deployment pipeline
+
+This architecture ensures the system can handle high-traffic flash sale scenarios while maintaining data consistency, performance, and reliability.
