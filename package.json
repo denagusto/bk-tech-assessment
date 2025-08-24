@@ -1,50 +1,47 @@
 {
-  "name": "flash-sale-frontend",
+  "name": "flash-sale-system",
   "version": "1.0.0",
-  "description": "Frontend for High-Throughput Flash Sale System",
-  "private": true,
-  "dependencies": {
-    "axios": "^1.6.7",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-scripts": "5.0.1",
-    "typescript": "^4.9.5",
-    "web-vitals": "^3.5.2"
-  },
-  "devDependencies": {
-    "@types/node": "^20.19.11",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "cypress": "^13.6.4",
-    "start-server-and-test": "^2.0.3"
-  },
+  "description": "High-Throughput Flash Sale System",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "test:e2e": "cypress run",
-    "test:e2e:simple": "cypress run --spec 'cypress/e2e/flash-sale.cy.ts'",
-    "test:e2e:stress": "cypress run --spec 'cypress/e2e/stress-test.cy.ts'",
-    "test:e2e:stress:5stock": "cypress run --spec 'cypress/e2e/stress-test-5stock.cy.ts'",
-    "cypress:open": "cypress open"
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "start:dev": "npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "test:e2e": "cd frontend && npm run test:e2e",
+    "stress:test": "cd backend && npm run stress:test",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm start",
+    "infra:up": "docker-compose up -d",
+    "infra:down": "docker-compose down",
+    "infra:logs": "docker-compose logs -f",
+    "infra:reset": "docker-compose down -v && docker-compose up -d",
+    "graylog:up": "docker-compose up -d graylog mongo elasticsearch",
+    "graylog:down": "docker-compose stop graylog mongo elasticsearch",
+    "graylog:logs": "docker-compose logs -f graylog",
+    "graylog:status": "curl -s http://localhost:19000/api/system/lbstatus | jq .",
+    "kafka:up": "docker-compose up -d kafka",
+    "kafka:down": "docker-compose stop kafka",
+    "kafka:logs": "docker-compose logs -f kafka",
+    "kafka:topics": "docker-compose exec kafka rpk topic list",
+    "kafka:health": "docker-compose exec kafka rpk cluster health",
+    "redpanda:console:up": "docker-compose up -d redpanda-console",
+    "redpanda:console:down": "docker-compose stop redpanda-console",
+    "redpanda:console:logs": "docker-compose logs -f redpanda-console",
+    "redpanda:console:open": "open http://localhost:18080",
+    "logs:view": "cd backend && npm run logs:view",
+    "logs:tail": "cd backend && npm run logs:tail"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
-  "proxy": "http://localhost:3001"
+  "keywords": ["flash-sale", "high-throughput", "scalable", "nestjs", "react", "kafka", "redis", "postgres", "graylog"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
 }

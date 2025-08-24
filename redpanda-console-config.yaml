@@ -1,0 +1,17 @@
+# v3+ strict config – minimal and valid
+server:
+  listenPort: 8080
+
+kafka:
+  brokers:
+    - "kafka:9092"   # container-to-container address
+
+# If you later run these, add them with the NEW keys only:
+# schemaRegistry:
+#   enabled: true
+#   urls: ["http://schema-registry:8081"]
+#
+# kafkaConnect:
+#   clusters:
+#     - name: "local-connect"
+#       url: "http://connect:8083"

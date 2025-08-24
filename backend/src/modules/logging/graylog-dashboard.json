@@ -1,0 +1,185 @@
+{
+  "title": "Flash Sale System Dashboard",
+  "description": "Comprehensive monitoring dashboard for the Flash Sale System",
+  "category": "Flash Sale",
+  "dashboard": {
+    "title": "Flash Sale System Dashboard",
+    "description": "Real-time monitoring of flash sale operations, performance, and errors",
+    "widgets": [
+      {
+        "type": "SEARCH_RESULT_CHART",
+        "title": "Purchase Attempts Over Time",
+        "description": "Number of purchase attempts per hour",
+        "configuration": {
+          "query": "service:flash-sale-backend AND message:*purchase attempt*",
+          "timerange": {
+            "type": "relative",
+            "range": 24
+          },
+          "interval": "hour"
+        }
+      },
+      {
+        "type": "SEARCH_RESULT_CHART",
+        "title": "Success vs Failed Purchases",
+        "description": "Purchase success rate over time",
+        "configuration": {
+          "query": "service:flash-sale-backend AND (message:*Purchase successful* OR message:*Purchase attempt failed*)",
+          "timerange": {
+            "type": "relative",
+            "range": 24
+          },
+          "interval": "hour"
+        }
+      },
+      {
+        "type": "SEARCH_RESULT_CHART",
+        "title": "Response Times",
+        "description": "API response times by endpoint",
+        "configuration": {
+          "query": "service:flash-sale-backend AND duration:*",
+          "timerange": {
+            "type": "relative",
+            "range": 24
+          },
+          "interval": "hour"
+        }
+      },
+      {
+        "type": "SEARCH_RESULT_CHART",
+        "title": "Error Rate",
+        "description": "Error occurrences over time",
+        "configuration": {
+          "query": "service:flash-sale-backend AND level:error",
+          "timerange": {
+            "type": "relative",
+            "range": 24
+          },
+          "interval": "hour"
+        }
+      },
+      {
+        "type": "SEARCH_RESULT_CHART",
+        "title": "Stock Updates",
+        "description": "Stock level changes over time",
+        "configuration": {
+          "query": "service:flash-sale-backend AND message:*Stock updated*",
+          "timerange": {
+            "type": "relative",
+            "range": 24
+          },
+          "interval": "hour"
+        }
+      },
+      {
+        "type": "SEARCH_RESULT_CHART",
+        "title": "Kafka Events",
+        "description": "Kafka event publishing success/failure",
+        "configuration": {
+          "query": "service:flash-sale-backend AND (message:*Kafka* OR message:*event published*)",
+          "timerange": {
+            "type": "relative",
+            "range": 24
+          },
+          "interval": "hour"
+        }
+      }
+    ]
+  },
+  "streams": [
+    {
+      "title": "Flash Sale Application Logs",
+      "description": "All application logs from the flash sale system",
+      "rules": [
+        {
+          "type": "EXACT",
+          "field": "service",
+          "value": "flash-sale-backend"
+        }
+      ]
+    },
+    {
+      "title": "Flash Sale Errors",
+      "description": "Error logs from the flash sale system",
+      "rules": [
+        {
+          "type": "EXACT",
+          "field": "service",
+          "value": "flash-sale-backend"
+        },
+        {
+          "type": "EXACT",
+          "field": "level",
+          "value": "error"
+        }
+      ]
+    },
+    {
+      "title": "Purchase Operations",
+      "description": "All purchase-related operations",
+      "rules": [
+        {
+          "type": "EXACT",
+          "field": "service",
+          "value": "flash-sale-backend"
+        },
+        {
+          "type": "REGEX",
+          "field": "message",
+          "value": ".*purchase.*"
+        }
+      ]
+    },
+    {
+      "title": "Performance Metrics",
+      "description": "Performance and timing logs",
+      "rules": [
+        {
+          "type": "EXACT",
+          "field": "service",
+          "value": "flash-sale-backend"
+        },
+        {
+          "type": "REGEX",
+          "field": "message",
+          "value": ".*Performance.*|.*duration.*"
+        }
+      ]
+    }
+  ],
+  "alerts": [
+    {
+      "title": "High Error Rate Alert",
+      "description": "Alert when error rate exceeds threshold",
+      "condition": {
+        "type": "field_content_value",
+        "field": "level",
+        "value": "error",
+        "threshold": 10,
+        "time": 300
+      }
+    },
+    {
+      "title": "Slow Response Time Alert",
+      "description": "Alert when response times are too slow",
+      "condition": {
+        "type": "field_content_value",
+        "field": "duration",
+        "value": 1000,
+        "threshold": 5,
+        "time": 300
+      }
+    },
+    {
+      "title": "Purchase Failure Alert",
+      "description": "Alert when purchase failures are high",
+      "condition": {
+        "type": "field_content_value",
+        "field": "message",
+        "value": "Purchase attempt failed",
+        "threshold": 5,
+        "time": 300
+      }
+    }
+  ]
+}
