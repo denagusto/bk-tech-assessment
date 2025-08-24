@@ -391,3 +391,249 @@ body {
 .mt-1 {
   margin-top: 0.25rem;
 }
+
+/* Enhanced Onboarding Highlight Styles */
+.onboarding-highlight {
+  animation: highlightPulse 0.5s ease-in-out infinite alternate;
+  transform: scale(1.05);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  position: relative;
+}
+
+.onboarding-highlight:focus {
+  outline: none;
+  animation: highlightFocus 0.8s ease-in-out infinite alternate;
+  transform: scale(1.08);
+  box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.4), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth scroll behavior for the entire page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced button hover effects */
+.try-user-button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.try-user-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -8px rgba(147, 51, 234, 0.6);
+}
+
+.try-user-button:active {
+  transform: translateY(0);
+  transition: all 0.1s ease;
+}
+
+/* Smooth tab transition */
+.tab-content {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.tab-content.active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.tab-content.inactive {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+/* Enhanced highlight animations */
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.5), 0 15px 35px -5px rgba(0, 0, 0, 0.15);
+    transform: scale(1.07);
+  }
+}
+
+@keyframes highlightFocus {
+  0% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.4), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.6), 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    transform: scale(1.1);
+  }
+}
+
+/* Smooth element transitions */
+.smooth-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fast highlight transitions */
+.highlight-fast {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced focus states */
+.focus-ring {
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+/* Loading animation for smooth transitions */
+.loading-fade {
+  opacity: 0;
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced button animations */
+.animated-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animated-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.animated-button:hover::before {
+  left: 100%;
+}
+
+.animated-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* Smooth scroll indicator */
+.scroll-indicator {
+  position: fixed;
+  top: 50%;
+  right: 20px;
+  transform: translateY(-50%);
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.scroll-indicator.visible {
+  opacity: 1;
+}
+
+.scroll-indicator .arrow {
+  width: 30px;
+  height: 30px;
+  background: rgba(59, 130, 246, 0.8);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 10px 0;
+}
+
+.scroll-indicator .arrow:hover {
+  background: rgba(59, 130, 246, 1);
+  transform: scale(1.1);
+}
+
+/* Enhanced table row hover effects */
+.user-table-row {
+  transition: all 0.2s ease;
+}
+
+.user-table-row:hover {
+  background-color: rgba(147, 51, 234, 0.05);
+  transform: translateX(5px);
+}
+
+/* Smooth status transitions */
+.status-badge {
+  transition: all 0.3s ease;
+}
+
+.status-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Enhanced input focus states */
+.enhanced-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+/* Smooth page transitions */
+.page-transition {
+  animation: pageSlideIn 0.4s ease-out;
+}
+
+@keyframes pageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced loading states */
+.loading-enhanced {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-enhanced::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: loadingShimmer 1.5s infinite;
+}
+
+@keyframes loadingShimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}

@@ -18,8 +18,8 @@ Cypress.Commands.add('resetSystem', () => {
   // Navigate to users tab
   cy.get('[data-testid="users-tab"]').click();
   
-  // Click reset system button
-  cy.get('[data-testid="reset-system-button"]').click();
+  // Click reset system button (using the small stock reset button)
+  cy.get('[data-testid="reset-system-button-small"]').click();
   
   // Wait for reset to complete
   cy.get('[data-testid="reset-message"]', { timeout: 15000 }).should('be.visible');

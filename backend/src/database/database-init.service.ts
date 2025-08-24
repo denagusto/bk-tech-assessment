@@ -37,7 +37,7 @@ export class DatabaseInitService implements OnModuleInit {
       console.log('Database tables created');
 
       // Seed flash sale using dedicated seeder
-      const flashSaleSeeder = new FlashSaleSeeder(this.dataSource);
+      const flashSaleSeeder = new FlashSaleSeeder(undefined, this.dataSource);
       await flashSaleSeeder.seed();
 
       // Seed users using dedicated seeder

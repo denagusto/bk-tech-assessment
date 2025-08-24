@@ -243,7 +243,19 @@ Reset Request → Database Reset → Redis Clear → Cache Invalidation
 npm run install:all
    ```
 
-#### 2. Start Infrastructure (Docker Services)
+#### 2. Environment Setup
+   ```bash
+# Create .env files from examples (Windows)
+npm run env:setup
+
+# OR for Mac/Linux
+npm run env:setup:unix
+
+# OR cross-platform (auto-detects OS)
+npm run env:setup:cross
+   ```
+
+#### 3. Start Infrastructure (Docker Services)
    ```bash
 # Start PostgreSQL, Redis, Kafka, and other services
    npm run infra:up
@@ -255,7 +267,7 @@ docker-compose ps
 curl http://localhost:3001/health  # Backend health check
 ```
 
-#### 3. Start Backend Server
+#### 4. Start Backend Server
    ```bash
 # In a new terminal
 npm run dev:backend
@@ -268,7 +280,7 @@ npm run dev:backend
 # - Start API server
 ```
 
-#### 4. Start Frontend Application
+#### 5. Start Frontend Application
    ```bash
 # In another new terminal
 npm run dev:frontend
@@ -276,7 +288,7 @@ npm run dev:frontend
 # Wait for frontend to start (you'll see "Local: http://localhost:3000")
 ```
 
-#### 5. Access the Application
+#### 6. Access the Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:3001
 - **Database**: localhost:5432 (PostgreSQL)
@@ -293,6 +305,11 @@ npm run dev:frontend
 
 #### Individual Service Management
 ```bash
+# Environment setup
+npm run env:setup         # Create .env files (Windows)
+npm run env:setup:unix    # Create .env files (Mac/Linux)
+npm run env:setup:cross   # Create .env files (cross-platform)
+
 # Infrastructure only
 npm run infra:up          # Start all services
 npm run infra:down        # Stop all services
@@ -421,8 +438,10 @@ npm run dev:frontend   # Terminal 2
 # Run tests after code changes
 npm test               # Backend tests
 cd frontend && npm test # Frontend tests
-npm run test:e2e       # E2E tests
+npm run test:e2e:simple # E2E tests (safe)
 ```
+
+**Note**: Always use specific test commands like `npm run test:e2e:simple` or `npm run test:e2e:all` instead of the old `npm run test:e2e` command to prevent backend crashes.
 
 #### 3. Reset for Testing
 ```bash
@@ -485,7 +504,7 @@ npm run test:e2e
 ```bash
 cd frontend
 
-# Run simple E2E tests
+# Run simple E2E tests (safe)
 npm run test:e2e:simple
 
 # Run stress tests (recommended)
@@ -494,9 +513,14 @@ npm run test:e2e:stress:5stock
 # Run full stress test suite
 npm run test:e2e:stress
 
+# Run all tests sequentially (safest)
+npm run test:e2e:all
+
 # Open Cypress GUI for manual testing
 npm run cypress:open
 ```
+
+**Important Note**: The old `npm run test:e2e` command has been removed because it runs all tests simultaneously without proper backend recovery, which can crash the server. Always use the specific test commands above for safe testing.
 
 #### Test Coverage Summary
 - **Backend**: Test suite covering business logic, architecture, and data consistency (100% working)
@@ -508,6 +532,30 @@ npm run cypress:open
 - **Frontend E2E Tests**: Fully working
 - **Backend Unit Tests**: Fully working with good coverage
 - **Stress Tests**: Working with proper configuration
+- **Stock Preset System**: New feature for easy stress testing
+
+#### Stock Preset Testing
+The system now includes Quick Stock Presets for easy stress testing:
+
+- **Small (5)**: Perfect for testing basic functionality and small concurrency
+- **Medium (100)**: Good for testing medium-scale scenarios
+- **Large (1000)**: Ideal for large-scale stress testing
+- **Extreme (10K)**: For extreme load testing scenarios
+
+Each preset automatically:
+- Sets the appropriate stock level
+- Seeds the corresponding number of users
+- Provides consistent testing environment
+
+#### Cypress Stress Tests
+The system includes comprehensive stress tests that utilize stock presets:
+
+- **Basic Stress Test**: Tests 100 users with 5 stock items
+- **Race Condition Test**: Tests burst requests with 5 stock items  
+- **Stock Preset Tests**: Tests different stock levels (5, 100, 1000 items)
+- **Preset Switching Test**: Demonstrates changing stock levels during testing
+
+All tests now use the stock preset system for consistent and reliable testing.
 
 
 
@@ -527,6 +575,7 @@ GET    /api/flash-sale/status     - Check sale status
 POST   /api/flash-sale/purchase   - Attempt purchase
 GET    /api/flash-sale/purchase/:username - Check user status
 POST   /api/flash-sale/reset      - Reset system
+POST   /api/flash-sale/stock-preset/:preset - Set stock preset (small/medium/large/extreme)
 POST   /api/users/seed            - Seed test users
 ```
 
@@ -687,10 +736,43 @@ npm run test:e2e:stress:5stock
 npm run test:e2e:stress
 ```
 
+**Run All Tests Sequentially**:
+```bash
+# Cross-platform (works on Windows, Mac, Linux)
+npm run test:e2e:all
+```
+
 **Open Cypress for Manual Testing**:
 ```bash
 npm run cypress:open
 ```
+
+#### Running All Tests Sequentially
+
+The system now supports running all Cypress test suites in sequence with proper backend recovery between each suite. This ensures that all tests can complete without overwhelming the backend server.
+
+**Cross-Platform Command**:
+```bash
+npm run test:e2e:all
+```
+
+**What This Does**:
+1. Runs `flash-sale.cy.ts` first
+2. Waits 15 seconds for backend to recover
+3. Runs `stress-test-5stock.cy.ts`
+4. Waits 15 seconds for backend to recover
+5. Runs `stress-test.cy.ts`
+6. Waits 20 seconds for backend to recover
+7. Runs `flash-sale.cy.ts` again as final test
+
+**Cross-Platform Compatibility**:
+- **Windows with Git Bash**: Uses `sleep` command (optimal for Git Bash users)
+- **macOS/Linux**: Uses `sleep` command (native Unix command)
+- **Simple and Reliable**: No complex fallback logic needed
+- **Git Bash Optimized**: Perfect for Windows users who prefer Git Bash over PowerShell
+
+**Expected Duration**: Approximately 3-5 minutes total
+**Backend Recovery**: Automatic delays between test suites
 
 #### Architecture Benefits Shown
 
@@ -763,6 +845,12 @@ CYPRESS_API_TIMEOUT=10000
 CYPRESS_VIEWPORT_WIDTH=1280
 CYPRESS_VIEWPORT_HEIGHT=720
 ```
+
+**Testing Best Practices**:
+- Use `npm run test:e2e:all` for complete test coverage (sequential execution)
+- Use specific test commands for individual test suites
+- Avoid running all tests simultaneously to prevent backend crashes
+- Always ensure backend is healthy before running stress tests
 
 ## Troubleshooting
 

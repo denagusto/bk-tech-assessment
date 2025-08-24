@@ -190,9 +190,18 @@ export class FlashSaleService {
     }
   }
 
-  async resetSystem(): Promise<void> {
+  async resetSystem(resetToSmallStock: boolean = true): Promise<void> {
     try {
-      await this.flashSaleRepository.resetStock();
+      if (resetToSmallStock) {
+        // Reset to small stock (5 items)
+        await this.flashSaleRepository.resetStock();
+        console.log('System reset to small stock (5 items)');
+      } else {
+        // Maintain current stock level but clear purchases
+        const currentStatus = await this.flashSaleRepository.getStatus();
+        console.log(`System reset maintaining current stock level: ${currentStatus.currentStock} items`);
+      }
+      
       await this.flashSaleRepository.resetPurchases();
       await this.userService.resetUsers();
       
@@ -201,6 +210,40 @@ export class FlashSaleService {
     } catch (error) {
       console.error('Failed to reset system:', error);
       throw new Error('Failed to reset system');
+    }
+  }
+
+  async updateStock(stockAmount: number): Promise<void> {
+    try {
+      console.log(`Updating flash sale stock to ${stockAmount} items...`);
+      
+      // Update stock in Redis repository
+      await this.flashSaleRepository.updateStock(stockAmount);
+      
+      // Update stock in database
+      const flashSale = await this.dataSource.getRepository(FlashSale).findOne({
+        where: { is_active: true },
+        order: { created_at: 'DESC' }
+      });
+
+      if (flashSale) {
+        flashSale.current_stock = stockAmount;
+        flashSale.max_stock = stockAmount;
+        flashSale.is_active = stockAmount > 0;
+        await this.dataSource.getRepository(FlashSale).save(flashSale);
+        console.log(`Database stock updated to ${stockAmount} items`);
+      } else {
+        throw new Error('No active flash sale found');
+      }
+
+      // Clear existing purchases when updating stock
+      await this.flashSaleRepository.resetPurchases();
+      console.log('Existing purchases cleared');
+      
+      console.log('Stock update completed successfully');
+    } catch (error) {
+      console.error('Failed to update flash sale stock:', error);
+      throw new Error('Failed to update flash sale stock');
     }
   }
 

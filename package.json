@@ -1,9 +1,12 @@
 {
   "name": "flash-sale-system",
   "version": "1.0.0",
-  "description": "High-Throughput Flash Sale System",
+  "description": "Bookipi Technical Assessment",
   "scripts": {
-    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "env:setup": "copy backend\\env.example backend\\.env && copy frontend\\env.example frontend\\.env",
+    "env:setup:unix": "cp backend/env.example backend/.env && cp frontend/env.example frontend/.env",
+    "env:setup:cross": "npm run env:setup:unix || npm run env:setup",
     "start:dev": "npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && npm run start:dev",

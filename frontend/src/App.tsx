@@ -1,24 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FlashSaleStatus, PurchaseResult, User, UserSeedResponse, Product } from './types';
-import { 
-  FlashSaleIcon, 
-  ClockIcon, 
-  CheckIcon, 
-  InfoIcon, 
-  WarningIcon, 
-  ShoppingBagIcon, 
-  StarIcon, 
-  ArrowLeftIcon, 
-  ArrowRightIcon 
+import {
+  FlashSaleIcon,
+  ClockIcon,
+  CheckIcon,
+  InfoIcon,
+  WarningIcon,
+  ShoppingBagIcon,
+  StarIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon
 } from './components/icons';
+
+type TabId = 'detail' | 'specifications' | 'important' | 'users';
 
 const App: React.FC = () => {
   const [flashSaleStatus, setFlashSaleStatus] = useState<FlashSaleStatus | null>(null);
-  const [username, setUsername] = useState('john_doe');
+  const [username, setUsername] = useState('john_doe_1');
   const [loading, setLoading] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<PurchaseResult | null>(null);
   const [userPurchaseStatus, setUserPurchaseStatus] = useState<{ hasPurchased: boolean; purchaseId?: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'detail' | 'specifications' | 'important' | 'users'>('detail');
+  const [activeTab, setActiveTab] = useState<TabId>('detail');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [users, setUsers] = useState<User[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -28,6 +30,11 @@ const App: React.FC = () => {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [highlightedElement, setHighlightedElement] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [stockPresetLoading, setStockPresetLoading] = useState<string | null>(null);
+  const [currentPreset, setCurrentPreset] = useState<string>('small');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
 
   useEffect(() => {
     fetchFlashSaleStatus();
@@ -36,18 +43,18 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (activeTab === 'users') {
-      fetchUsers();
-    }
-  }, [activeTab]);
-
   const fetchFlashSaleStatus = async () => {
     try {
       const response = await fetch('http://localhost:3001/api/flash-sale/status');
       if (response.ok) {
         const data = await response.json();
         setFlashSaleStatus(data);
+
+        // Set current preset based on stock level
+        if (data.maxStock === 5) setCurrentPreset('small');
+        else if (data.maxStock === 100) setCurrentPreset('medium');
+        else if (data.maxStock === 1000) setCurrentPreset('large');
+        else if (data.maxStock === 10000) setCurrentPreset('extreme');
       }
     } catch (error) {
       console.error('Failed to fetch flash sale status:', error);
@@ -71,7 +78,7 @@ const App: React.FC = () => {
 
   const attemptPurchase = async () => {
     if (!username.trim()) return;
-    
+
     setLoading(true);
     try {
       const response = await fetch('http://localhost:3001/api/flash-sale/purchase', {
@@ -107,7 +114,7 @@ const App: React.FC = () => {
 
   const checkUserPurchase = async () => {
     if (!username.trim()) return;
-    
+
     try {
       const response = await fetch(`http://localhost:3001/api/flash-sale/purchase/${username.trim()}`);
       if (response.ok) {
@@ -119,20 +126,59 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchUsers = async () => {
+  const handlePageChange = (page: number) => {
+    // Ensure page is always a number
+    const pageNumber = Number(page);
+    if (isNaN(pageNumber) || pageNumber < 1) {
+      console.error('Invalid page number:', page);
+      return;
+    }
+    setCurrentPage(pageNumber);
+    fetchUsers(pageNumber);
+  };
+
+  const fetchUsers = useCallback(async (page: number = 1) => {
     setUsersLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/users');
+      const response = await fetch(`http://localhost:3001/api/users?page=${page}&limit=20`);
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        // Handle both old array format and new pagination format
+        if (Array.isArray(data)) {
+          setUsers(data);
+          setTotalUsers(data.length);
+          setTotalPages(1);
+          setCurrentPage(1);
+        } else if (data.users && Array.isArray(data.users)) {
+          setUsers(data.users);
+          setTotalUsers(Number(data.pagination?.total) || data.users.length);
+          setTotalPages(Number(data.pagination?.totalPages) || 1);
+          // Ensure currentPage is always a number
+          setCurrentPage(Number(data.pagination?.page) || page);
+        } else {
+          console.error('Unexpected users data format:', data);
+          setUsers([]);
+          setTotalUsers(0);
+          setTotalPages(1);
+          setCurrentPage(1);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch users:', error);
+      setUsers([]);
+      setTotalUsers(0);
+      setTotalPages(1);
+      setCurrentPage(1);
     } finally {
       setUsersLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    }
+  }, [activeTab, fetchUsers]);
 
   const seedUsers = async () => {
     try {
@@ -155,16 +201,16 @@ const App: React.FC = () => {
       const resetResponse = await fetch('http://localhost:3001/api/users/reset', {
         method: 'DELETE',
       });
-      
+
       if (resetResponse.ok) {
         setUsers([]);
         console.log('Users reset successfully');
-        
+
         // Automatically seed new users after reset
         const seedResponse = await fetch('http://localhost:3001/api/users/seed', {
           method: 'POST',
         });
-        
+
         if (seedResponse.ok) {
           const data = await seedResponse.json();
           console.log('Users auto-seeded successfully:', data.message);
@@ -179,58 +225,130 @@ const App: React.FC = () => {
     }
   };
 
-  const resetSystem = async () => {
+  const resetSystem = async (resetToSmallStock: boolean = true) => {
     try {
       // Reset the entire system (stock + purchases)
       const resetResponse = await fetch('http://localhost:3001/api/flash-sale/reset', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ resetToSmallStock }),
       });
-      
+
       if (resetResponse.ok) {
-        console.log('System reset successfully');
-        
+        const resetData = await resetResponse.json();
+        console.log('System reset successfully:', resetData.message);
+
+        // Reset current preset based on reset type
+        if (resetToSmallStock) {
+          setCurrentPreset('small');
+        } else {
+          // For maintain stock, we'll set preset based on current stock level (updated on next status fetch)
+        }
+
         // Automatically seed users after system reset
+        const userCount = resetToSmallStock ? 10 : (flashSaleStatus?.maxStock || 100);
         const seedResponse = await fetch('http://localhost:3001/api/users/seed', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userCount: Math.min(userCount, 15000) }), // Cap at 15,000 users for stress testing
         });
-        
+
         if (seedResponse.ok) {
           const data = await seedResponse.json();
           console.log('Users auto-seeded successfully:', data.message);
-          
+
           // Refresh all data
           fetchFlashSaleStatus();
           fetchUsers();
-          
+
           // Show success message
-          setResetMessage('System reset successfully! Stock restored to 5 items, all purchases cleared, and users auto-seeded.');
-          
+          const stockMessage = resetToSmallStock
+            ? 'Stock restored to 5 items'
+            : `Stock maintained at ${flashSaleStatus?.maxStock || 'current'} items`;
+          setResetMessage(`System reset successfully! ${stockMessage}, all purchases cleared, and ${data.usersCreated} users auto-seeded.`);
+
           // Clear message after 5 seconds
           setTimeout(() => setResetMessage(null), 5000);
         } else {
           console.error('Failed to auto-seed users after reset');
           setResetMessage('System reset successful, but failed to auto-seed users. Please manually seed users.');
-          
+
           // Still refresh data even if seeding failed
           fetchFlashSaleStatus();
           fetchUsers();
-          
+
           // Clear message after 5 seconds
           setTimeout(() => setResetMessage(null), 5000);
         }
       } else {
         console.error('Failed to reset system');
         setResetMessage('Failed to reset system. Please try again.');
-        
+
         // Clear message after 5 seconds
         setTimeout(() => setResetMessage(null), 5000);
       }
     } catch (error) {
       console.error('Failed to reset system:', error);
       setResetMessage('Failed to reset system. Please try again.');
-      
+
       // Clear message after 5 seconds
       setTimeout(() => setResetMessage(null), 5000);
+    }
+  };
+
+  const handleStockPreset = async (preset: string) => {
+    try {
+      setStockPresetLoading(preset);
+
+      const response = await fetch(`http://localhost:3001/api/flash-sale/stock-preset/${preset}`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Stock preset applied:', data.message);
+
+        // Refresh status
+        fetchFlashSaleStatus();
+
+        // Auto-seed users based on preset
+        const userCount = data.userCount || 10;
+        const seedResponse = await fetch('http://localhost:3001/api/users/seed', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userCount }),
+        });
+
+        if (seedResponse.ok) {
+          const seedData = await seedResponse.json();
+          console.log('Users seeded for preset:', seedData.message);
+          fetchUsers();
+        }
+
+        // Set current preset
+        setCurrentPreset(preset);
+
+        // Show success message
+        setResetMessage(`Stock preset '${preset}' applied successfully! Stock set to ${data.stockAmount} items with ${userCount} users.`);
+        setTimeout(() => setResetMessage(null), 5000);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to apply stock preset:', errorData.message);
+        setResetMessage(`Failed to apply stock preset: ${errorData.message}`);
+        setTimeout(() => setResetMessage(null), 5000);
+      }
+    } catch (error) {
+      console.error('Failed to apply stock preset:', error);
+      setResetMessage('Failed to apply stock preset. Please try again.');
+      setTimeout(() => setResetMessage(null), 5000);
+    } finally {
+      setStockPresetLoading(null);
     }
   };
 
@@ -246,10 +364,10 @@ const App: React.FC = () => {
     setPurchaseResult(null);
     setUserPurchaseStatus(null);
     setLoading(false);
-    
+
     // Set new username
     setUsername(newUsername);
-    
+
     // Check if the new user has already purchased
     if (newUsername.trim()) {
       try {
@@ -263,109 +381,87 @@ const App: React.FC = () => {
       }
     }
 
-    // Start onboarding sequence after a short delay
-    setTimeout(() => {
-      // Step 1: Highlight username input and center it
-      const usernameInput = document.getElementById('username-input');
-      if (usernameInput) {
-        // Add highlight class
-        usernameInput.classList.add('onboarding-highlight');
-        usernameInput.focus();
-        
-        // Force immediate scroll to center with multiple attempts
-        const scrollToCenter = () => {
-          const rect = usernameInput.getBoundingClientRect();
-          const viewportHeight = window.innerHeight;
-          const elementTop = rect.top;
-          const elementHeight = rect.height;
-          const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          
-          // Calculate exact center position
-          const targetScrollTop = currentScrollTop + elementTop - (viewportHeight / 2) + (elementHeight / 2);
-          
-          // Force scroll immediately
-          window.scrollTo({
-            top: targetScrollTop,
-            behavior: 'auto'
-          });
-          
-          // Then smooth scroll for better UX
-          setTimeout(() => {
+    // Start onboarding sequence immediately (no delay)
+    startOnboardingSequence();
+  };
+
+  const startOnboardingSequence = () => {
+    // Step 1: Highlight username input and center it immediately
+    const usernameInput = document.getElementById('username-input');
+    if (usernameInput) {
+      // Add highlight class with enhanced animation
+      usernameInput.classList.add('onboarding-highlight', 'smooth-transition', 'highlight-fast');
+      (usernameInput as HTMLInputElement).focus();
+
+      // Optimized scroll to center - single, efficient scroll
+      const scrollToCenter = () => {
+        const rect = usernameInput.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const elementTop = rect.top;
+        const elementHeight = rect.height;
+        const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+        // Calculate exact center position
+        const targetScrollTop = currentScrollTop + elementTop - (viewportHeight / 2) + (elementHeight / 2);
+
+        // Single smooth scroll with optimized timing
+        window.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
+        });
+      };
+
+      // Execute scroll immediately
+      scrollToCenter();
+
+      // Remove highlight after 0.8 seconds (MUCH faster)
+      setTimeout(() => {
+        usernameInput.classList.remove('onboarding-highlight');
+      }, 800);
+
+      // Step 2: Highlight buy button after username highlight
+      setTimeout(() => {
+        const buyButton = document.getElementById('buy-button');
+        if (buyButton) {
+          // Add highlight class with enhanced animation
+          buyButton.classList.add('onboarding-highlight', 'smooth-transition', 'highlight-fast');
+          (buyButton as HTMLButtonElement).focus();
+
+          // Optimized scroll to center
+          const scrollButtonToCenter = () => {
+            const rect = buyButton.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const elementTop = rect.top;
+            const elementHeight = rect.height;
+            const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+            // Calculate exact center position
+            const targetScrollTop = currentScrollTop + elementTop - (viewportHeight / 2) + (elementHeight / 2);
+
+            // Single smooth scroll
             window.scrollTo({
               top: targetScrollTop,
               behavior: 'smooth'
             });
-          }, 50);
-        };
-        
-        // Execute scroll immediately
-        scrollToCenter();
-        
-        // Retry scroll after a short delay to ensure it worked
-        setTimeout(scrollToCenter, 200);
-        setTimeout(scrollToCenter, 500);
-        
-        // Remove highlight after 2 seconds
-        setTimeout(() => {
-          usernameInput.classList.remove('onboarding-highlight');
-        }, 2000);
-        
-        // Step 2: After username highlight, highlight buy button
-        setTimeout(() => {
-          const buyButton = document.getElementById('buy-button');
-          if (buyButton) {
-            // Add highlight class
-            buyButton.classList.add('onboarding-highlight');
-            buyButton.focus();
-            
-            // Force immediate scroll to center with multiple attempts
-            const scrollButtonToCenter = () => {
-              const rect = buyButton.getBoundingClientRect();
-              const viewportHeight = window.innerHeight;
-              const elementTop = rect.top;
-              const elementHeight = rect.height;
-              const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-              
-              // Calculate exact center position
-              const targetScrollTop = currentScrollTop + elementTop - (viewportHeight / 2) + (elementHeight / 2);
-              
-              // Force scroll immediately
-              window.scrollTo({
-                top: targetScrollTop,
-                behavior: 'auto'
-              });
-              
-              // Then smooth scroll for better UX
-              setTimeout(() => {
-                window.scrollTo({
-                  top: targetScrollTop,
-                  behavior: 'smooth'
-                });
-              }, 50);
-            };
-            
-            // Execute scroll immediately
-            scrollButtonToCenter();
-            
-            // Retry scroll after a short delay to ensure it worked
-            setTimeout(scrollButtonToCenter, 200);
-            setTimeout(scrollButtonToCenter, 500);
-            
-            // Remove highlight after 3 seconds
-            setTimeout(() => {
-              buyButton.classList.remove('onboarding-highlight');
-            }, 3000);
-          }
-        }, 2000); // Wait 2 seconds before highlighting buy button
-      }
-    }, 500); // Wait 500ms before starting onboarding sequence
+          };
+
+          // Execute scroll immediately
+          scrollButtonToCenter();
+
+          // Remove highlight after 1.5 seconds
+          setTimeout(() => {
+            buyButton.classList.remove('onboarding-highlight');
+          }, 1500);
+        }
+      }, 800); // Wait 0.8 seconds before highlighting buy button (MUCH faster)
+    }
   };
 
   const formatTimeRemaining = (milliseconds: number): string => {
     const hours = Math.floor(milliseconds / (1000 * 60 * 60));
     const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m ${seconds}s`;
     } else if (minutes > 0) {
@@ -409,7 +505,7 @@ const App: React.FC = () => {
             z-index: 50;
             position: relative;
           }
-          
+
           @keyframes onboarding-pulse {
             from {
               box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 40px rgba(59, 130, 246, 0.4);
@@ -418,12 +514,12 @@ const App: React.FC = () => {
               box-shadow: 0 0 30px rgba(59, 130, 246, 1), 0 0 60px rgba(59, 130, 246, 0.6);
             }
           }
-          
+
           .onboarding-highlight:focus {
             outline: none;
             box-shadow: 0 0 30px rgba(59, 130, 246, 1), 0 0 60px rgba(59, 130, 246, 0.6);
           }
-          
+
           @keyframes shake {
             0%, 100% { transform: translateX(0) rotate(0deg); }
             10% { transform: translateX(-1px) rotate(-1deg); }
@@ -436,28 +532,28 @@ const App: React.FC = () => {
             80% { transform: translateX(1px) rotate(1deg); }
             90% { transform: translateX(-1px) rotate(-1deg); }
           }
-          
+
           .notification-shake {
             animation: shake 1.2s ease-in-out infinite;
           }
-          
+
           @keyframes glow {
             0%, 100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.5), 0 0 10px rgba(239, 68, 68, 0.3); }
             50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.8), 0 0 30px rgba(239, 68, 68, 0.5); }
           }
-          
+
           .notification-glow {
             animation: glow 2s ease-in-out infinite;
           }
         `}
       </style>
-      
+
       {/* Highlighted Onboarding Overlay */}
       {highlightedElement && (
         <div className="fixed inset-0 z-40 pointer-events-none">
           {/* Grey out everything except highlighted element */}
           <div className="absolute inset-0 bg-black bg-opacity-60"></div>
-          
+
           {/* Highlight specific element */}
           {highlightedElement === 'users-tab' && (
             <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50">
@@ -478,7 +574,7 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-          
+
           {highlightedElement === 'seed-users-button' && (
             <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50">
               <div className="bg-white p-6 rounded-lg shadow-2xl max-w-md mx-4 pointer-events-auto transform -translate-y-1/2">
@@ -495,7 +591,7 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
-          
+
           {highlightedElement === 'try-this-user-button' && (
             <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50">
               <div className="bg-white p-6 rounded-lg shadow-2xl max-w-md mx-4 pointer-events-auto transform -translate-y-1/2">
@@ -515,594 +611,719 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <button
-              onClick={() => setHighlightedElement('users-tab')}
-              className="mr-4 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm font-medium rounded-lg transition-colors flex items-center"
-            >
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Start Onboarding
-            </button>
-          </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center">
-            <FlashSaleIcon className="w-10 h-10 text-red-500 mr-3" />
-            {productLoading ? 'Loading...' : product?.product_name || 'AirPods 3 Pro Release Flash Sale'}
-          </h1>
-          <p className="text-lg text-gray-600">
-            {productLoading ? 'Loading product details...' : product?.description || 'Limited Edition Premium Wireless Earbuds'}
-          </p>
-        </div>
-
-        {/* Main Content - 2 Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
-          
-          {/* Floating Price Badge */}
-          <div className="absolute top-0 right-0 transform -translate-y-1/2 z-20 hidden lg:block">
-            <div className="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-600 text-white px-8 py-3 rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-300 border-2 border-purple-300/30 relative">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center mr-4">
-                  <FlashSaleIcon className="w-4 h-4 mr-2 text-yellow-300" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-yellow-300">Flash Sale</span>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-black">
-                    {product?.currency_symbol || '$'}{product?.price_after_discount || '299'}
-                  </div>
-                  <div className="text-xs opacity-90 line-through">
-                    {product?.currency_symbol || '$'}{product?.price || '499'}
-                  </div>
-                </div>
-              </div>
-              {/* Floating effect dots */}
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-              <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-pink-400 rounded-full animate-pulse delay-100"></div>
+      <div className="min-h-screen bg-gray-50 py-8 page-transition">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-4">
+              <button
+                onClick={() => setHighlightedElement('users-tab')}
+                className="mr-4 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm font-medium rounded-lg transition-colors flex items-center"
+              >
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Start Onboarding
+              </button>
             </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center">
+              <FlashSaleIcon className="w-10 h-10 text-red-500 mr-3" />
+              {productLoading ? (
+                <span className="loading-fade">Loading...</span>
+              ) : (
+                product?.product_name || 'AirPods 3 Pro Release Flash Sale'
+              )}
+            </h1>
+            <p className="text-lg text-gray-600">
+              {productLoading ? (
+                <span className="loading-fade">Loading product details...</span>
+              ) : (
+                product?.description || 'Limited Edition Premium Wireless Earbuds'
+              )}
+            </p>
           </div>
-          
-          {/* Left Column - Image Slider + Purchase Section */}
-          <div className="lg:col-span-4">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              {/* Main Image */}
-              <div className="relative mb-4">
-                <img
-                  src={product?.images?.gallery?.[currentImageIndex] || '/images/airpods-1.jpeg'}
-                  alt={product?.product_name || 'AirPods 3 Pro'}
-                  className="w-full h-64 object-contain rounded-xl bg-gray-50"
-                />
-                {/* Navigation Arrows */}
-                <button
-                  onClick={() => setCurrentImageIndex(prev => prev === 0 ? (product?.images?.gallery?.length || 4) - 1 : prev - 1)}
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all"
-                >
-                  <ArrowLeftIcon className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setCurrentImageIndex(prev => prev === (product?.images?.gallery?.length || 4) - 1 ? 0 : prev + 1)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all"
-                >
-                  <ArrowRightIcon className="w-5 h-5" />
-                </button>
-              </div>
 
-              {/* Thumbnails */}
-              <div className="flex space-x-2 justify-center mb-6">
-                {(product?.images?.thumbnails || ['/images/airpods-1.jpeg', '/images/airpods-2.jpeg', '/images/airpods-3.jpeg', '/images/airpods-4.jpeg']).map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
-                      currentImageIndex === index 
-                        ? 'border-blue-500 shadow-lg' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`${product?.product_name || 'AirPods 3 Pro'} view ${index + 1}`}
-                      className="w-full h-full object-contain bg-gray-50"
-                    />
-                  </button>
-                ))}
-              </div>
+          {/* Main Content - 2 Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative">
 
-              {/* Purchase Section - Now below the slider */}
-              <div className="border-t border-gray-200 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <ShoppingBagIcon className="w-5 h-5 mr-2 text-gray-600" />
-                    Purchase Section
-                  </h3>
-                  <button
-                    onClick={() => resetPurchaseSection()}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Reset purchase section"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* User Identifier Input */}
-                <div className="mb-4" data-testid="purchase-section">
-                  <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                    Username or Email
-                  </label>
-                  <input
-                    type="text"
-                    id="username-input"
-                    data-testid="user-id-input"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter username or email"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">You can use either username or email address</p>
-                </div>
-
-                {/* Check Purchase Button */}
-                <button
-                  onClick={checkUserPurchase}
-                  data-testid="check-purchase-button"
-                  disabled={!username.trim()}
-                  className="w-full mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Check Purchase Status
-                </button>
-
-                {/* Purchase Status Display */}
-                {userPurchaseStatus && (
-                  <div className="mb-4 p-3 rounded-lg bg-gray-50" data-testid="user-purchase-status">
-                    <p className="text-sm text-gray-700">
-                      {userPurchaseStatus.hasPurchased ? (
-                        <span className="text-green-600 font-medium flex items-center">
-                          <CheckIcon className="w-4 h-4 mr-2" />
-                          You have already purchased this item!
-                          {userPurchaseStatus.purchaseId && (
-                            <>
-                              <br />
-                              Purchase ID: {userPurchaseStatus.purchaseId}
-                            </>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-blue-600 font-medium flex items-center">
-                          <InfoIcon className="w-4 h-4 mr-2" />
-                          You haven't purchased this item yet
-                        </span>
-                      )}
-                    </p>
+            {/* Floating Price Badge */}
+            <div className="absolute top-0 right-0 transform -translate-y-1/2 z-20 hidden lg:block">
+              <div className="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-600 text-white px-8 py-3 rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-300 border-2 border-purple-300/30 relative">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center mr-4">
+                    <FlashSaleIcon className="w-4 h-4 mr-2 text-yellow-300" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-yellow-300">Flash Sale</span>
                   </div>
-                )}
+                  <div className="text-right">
+                    <div className="text-2xl font-black">
+                      {product?.currency_symbol || '$'}{product?.price_after_discount || '299'}
+                    </div>
+                    <div className="text-xs opacity-90 line-through">
+                      {product?.currency_symbol || '$'}{product?.price || '499'}
+                    </div>
+                  </div>
+                </div>
+                {/* Floating effect dots */}
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+                <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-pink-400 rounded-full animate-pulse delay-100"></div>
+              </div>
+            </div>
 
-                                  {/* Buy Now Button */}
+            {/* Left Column - Image Slider + Purchase Section */}
+            <div className="lg:col-span-4">
+              <div className="bg-white rounded-2xl shadow-lg p-6">
+                {/* Main Image */}
+                <div className="relative mb-4">
+                  <img
+                    src={product?.images?.gallery?.[currentImageIndex] || '/images/airpods-1.jpeg'}
+                    alt={product?.product_name || 'AirPods 3 Pro'}
+                    className="w-full h-64 object-contain rounded-xl bg-gray-50"
+                  />
+                  {/* Navigation Arrows */}
+                  <button
+                    onClick={() => setCurrentImageIndex(prev => prev === 0 ? (product?.images?.gallery?.length || 4) - 1 : prev - 1)}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all"
+                  >
+                    <ArrowLeftIcon className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentImageIndex(prev => prev === (product?.images?.gallery?.length || 4) - 1 ? 0 : prev + 1)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all"
+                  >
+                    <ArrowRightIcon className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Thumbnails */}
+                <div className="flex space-x-2 justify-center mb-6">
+                  {(product?.images?.thumbnails || ['/images/airpods-1.jpeg', '/images/airpods-2.jpeg', '/images/airpods-3.jpeg', '/images/airpods-4.jpeg']).map((image, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentImageIndex(index)}
+                      className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                        currentImageIndex === index
+                          ? 'border-blue-500 shadow-lg'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <img
+                        src={image}
+                        alt={`${product?.product_name || 'AirPods 3 Pro'} view ${index + 1}`}
+                        className="w-full h-full object-contain bg-gray-50"
+                      />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Purchase Section - Now below the slider */}
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <ShoppingBagIcon className="w-5 h-5 mr-2 text-gray-600" />
+                      Purchase Section
+                    </h3>
+                    <button
+                      onClick={() => resetPurchaseSection()}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Reset purchase section"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* User Identifier Input */}
+                  <div className="mb-4" data-testid="purchase-section">
+                    <label htmlFor="username-input" className="block text-sm font-medium text-gray-700 mb-2">
+                      Username or Email
+                    </label>
+                    <input
+                      type="text"
+                      id="username-input"
+                      data-testid="user-id-input"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter username or email"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent enhanced-input smooth-transition focus-ring"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">You can use either username or email address</p>
+                  </div>
+
+                  {/* Check Purchase Button */}
+                  <button
+                    onClick={checkUserPurchase}
+                    data-testid="check-purchase-button"
+                    disabled={!username.trim()}
+                    className="w-full mb-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Check Purchase Status
+                  </button>
+
+                  {/* Purchase Status Display */}
+                  {userPurchaseStatus && (
+                    <div className="mb-4 p-3 rounded-lg bg-gray-50" data-testid="user-purchase-status">
+                      <p className="text-sm text-gray-700">
+                        {userPurchaseStatus.hasPurchased ? (
+                          <span className="text-green-600 font-medium flex items-center">
+                            <CheckIcon className="w-4 h-4 mr-2" />
+                            You have already purchased this item!
+                            {userPurchaseStatus.purchaseId && (
+                              <>
+                                <br />
+                                Purchase ID: {userPurchaseStatus.purchaseId}
+                              </>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-blue-600 font-medium flex items-center">
+                            <InfoIcon className="w-4 h-4 mr-2" />
+                            You haven't purchased this item yet
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Buy Now Button */}
                   <button
                     id="buy-button"
                     data-testid="buy-now-button"
                     onClick={attemptPurchase}
                     disabled={!username.trim() || loading || flashSaleStatus?.status !== 'active' || userPurchaseStatus?.hasPurchased}
-                    className="w-full mb-4 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-bold text-lg rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    className="w-full mb-4 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-bold text-lg rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none animated-button smooth-transition"
                   >
-                  {loading ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Processing...
-                    </div>
-                  ) : (
-                    <span className="flex items-center justify-center">
-                      <FlashSaleIcon className="w-5 h-5 mr-2" />
-                      BUY NOW!
-                    </span>
-                  )}
-                </button>
+                    {loading ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                        Processing...
+                      </div>
+                    ) : (
+                      <span className="flex items-center justify-center">
+                        <FlashSaleIcon className="w-5 h-5 mr-2" />
+                        BUY NOW!
+                      </span>
+                    )}
+                  </button>
 
-                {/* Purchase Result */}
-                {purchaseResult && (
-                  <div className={`p-3 rounded-lg ${
-                    purchaseResult.success ? 'bg-green-50' : 'bg-red-50'
-                  }`} data-testid="purchase-result">
-                    <p className={`text-sm font-medium ${
-                      purchaseResult.success ? 'text-green-800' : 'text-red-800'
-                    }`}>
-                      {purchaseResult.success ? (
-                        <span className="flex items-center">
-                          <CheckIcon className="w-4 h-4 mr-2" />
-                          Success! {purchaseResult.message}
-                        </span>
-                      ) : (
-                        <span className="flex items-center">
-                          <WarningIcon className="w-4 h-4 mr-2" />
-                          {purchaseResult.message}
-                        </span>
-                      )}
-                      {purchaseResult.success && purchaseResult.purchaseId && (
-                        <>
-                          <br />
-                          Purchase ID: {purchaseResult.purchaseId}
-                        </>
-                      )}
-                    </p>
+                  {/* Purchase Result */}
+                  {purchaseResult && (
+                    <div
+                      className={`p-3 rounded-lg ${purchaseResult.success ? 'bg-green-50' : 'bg-red-50'}`}
+                      data-testid="purchase-result"
+                    >
+                      <p className={`text-sm font-medium ${purchaseResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                        {purchaseResult.success ? (
+                          <span className="flex items-center">
+                            <CheckIcon className="w-4 h-4 mr-2" />
+                            Success! {purchaseResult.message}
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <WarningIcon className="w-4 h-4 mr-2" />
+                            {purchaseResult.message}
+                          </span>
+                        )}
+                        {purchaseResult.success && purchaseResult.purchaseId && (
+                          <>
+                            <br />
+                            Purchase ID: {purchaseResult.purchaseId}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Price Display */}
+                  <div className="text-center pt-4 border-t border-gray-200">
+                    <div className="mb-2">
+                      <span className="text-3xl font-bold text-gray-900">$299</span>
+                      <span className="text-lg text-gray-500 line-through ml-2">$499</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Free shipping included</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Product Details */}
+            <div className="lg:col-span-8">
+              <div className="bg-white rounded-2xl shadow-lg p-6">
+                {/* Product Title */}
+                <div className="mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    {product?.product_name || 'AirPods 3 Pro Release Edition'}
+                  </h2>
+
+                  {/* Rating */}
+                  <div className="flex items-center">
+                    <div className="flex text-yellow-400">
+                      {[...Array(5)].map((_, i) => (
+                        <StarIcon key={i} className="w-5 h-5" filled={i < 4} />
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-600">4.9 (128 reviews)</span>
+                  </div>
+                </div>
+
+                {/* Flash Sale Status */}
+                {flashSaleStatus && (
+                  <div className={`mb-6 p-4 rounded-lg ${getStatusColor(flashSaleStatus.status)}`} data-testid="flash-sale-status">
+                    <h3 className="font-semibold text-lg mb-2 flex items-center">
+                      <FlashSaleIcon className="w-5 h-5 mr-2" />
+                      <span data-testid="status-text">{getStatusText(flashSaleStatus.status)}</span>
+                    </h3>
+
+                    {flashSaleStatus.status === 'upcoming' && flashSaleStatus.timeUntilStart && (
+                      <div className="text-center p-3 bg-blue-100 rounded-lg mb-4" data-testid="time-info">
+                        <p className="text-sm text-blue-800 mb-1 flex items-center justify-center">
+                          <ClockIcon className="w-4 h-4 mr-2" />
+                          Sale starts in:
+                        </p>
+                        <p className="text-xl font-bold text-blue-900">
+                          {formatTimeRemaining(flashSaleStatus.timeUntilStart)}
+                        </p>
+                      </div>
+                    )}
+
+                    {flashSaleStatus.status === 'active' && flashSaleStatus.timeUntilEnd && (
+                      <div className="text-center p-3 bg-green-100 rounded-lg mb-4" data-testid="time-info">
+                        <p className="text-sm text-green-800 mb-1 flex items-center justify-center">
+                          <ClockIcon className="w-4 h-4 mr-2" />
+                          Sale ends in:
+                        </p>
+                        <p className="text-xl font-bold text-green-900">
+                          {formatTimeRemaining(flashSaleStatus.timeUntilEnd)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Stock Information */}
+                    <div className="text-center" data-testid="stock-info">
+                      <p className="text-sm text-gray-600 mb-1">Available Stock:</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        <span data-testid="current-stock">{flashSaleStatus.currentStock}</span> /{' '}
+                        <span data-testid="total-stock">{flashSaleStatus.maxStock}</span>
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Sold: <span data-testid="sold-stock">{flashSaleStatus.maxStock - flashSaleStatus.currentStock}</span>
+                      </p>
+                    </div>
                   </div>
                 )}
 
-                {/* Price Display */}
-                <div className="text-center pt-4 border-t border-gray-200">
-                  <div className="mb-2">
-                    <span className="text-3xl font-bold text-gray-900">$299</span>
-                    <span className="text-lg text-gray-500 line-through ml-2">$499</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Free shipping included</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Product Details */}
-          <div className="lg:col-span-8">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              {/* Product Title */}
-              <div className="mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  {product?.product_name || 'AirPods 3 Pro Release Edition'}
-                </h2>
-                
-                {/* Rating */}
-                <div className="flex items-center">
-                  <div className="flex text-yellow-400">
-                    {[...Array(5)].map((_, i) => (
-                      <StarIcon key={i} className="w-5 h-5" filled={i < 4} />
+                {/* Product Tabs */}
+                <div className="mb-6">
+                  <div className="flex border-b border-gray-200">
+                    {[
+                      { id: 'detail', label: 'Detail' },
+                      { id: 'specifications', label: 'Specifications' },
+                      { id: 'important', label: 'Important Info' },
+                      { id: 'users', label: 'Setting Presets' }
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        data-testid={tab.id === 'users' ? 'users-tab' : tab.id === 'detail' ? 'main-tab' : `${tab.id}-tab`}
+                        onClick={() => setActiveTab(tab.id as TabId)}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors relative ${
+                          activeTab === (tab.id as TabId)
+                            ? tab.id === 'users'
+                              ? 'border-purple-500 text-purple-600'
+                              : 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        } ${
+                          highlightedElement === 'users-tab' && tab.id === 'users' ? 'ring-4 ring-yellow-400 ring-opacity-75 shadow-2xl scale-110 z-50 relative' : ''
+                        }`}
+                      >
+                        {tab.label}
+                        {tab.id === 'users' && (
+                          <>
+                            <span
+                              className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow-lg notification-shake notification-glow"
+                              data-testid="notification-badge"
+                            >
+                              🔔
+                            </span>
+                            {/* Pulsing dot indicator */}
+                            <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-red-500 rounded-full animate-ping" data-testid="pulsing-dot"></span>
+                            <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                          </>
+                        )}
+                      </button>
                     ))}
                   </div>
-                  <span className="text-sm text-gray-600">4.9 (128 reviews)</span>
-                </div>
-              </div>
 
-              {/* Flash Sale Status */}
-              {flashSaleStatus && (
-                <div className={`mb-6 p-4 rounded-lg ${getStatusColor(flashSaleStatus.status)}`} data-testid="flash-sale-status">
-                  <h3 className="font-semibold text-lg mb-2 flex items-center">
-                    <FlashSaleIcon className="w-5 h-5 mr-2" />
-                    <span data-testid="status-text">{getStatusText(flashSaleStatus.status)}</span>
-                  </h3>
-                  
-                  {flashSaleStatus.status === 'upcoming' && flashSaleStatus.timeUntilStart && (
-                    <div className="text-center p-3 bg-blue-100 rounded-lg mb-4" data-testid="time-info">
-                      <p className="text-sm text-blue-800 mb-1 flex items-center justify-center">
-                        <ClockIcon className="w-4 h-4 mr-2" />
-                        Sale starts in:
-                      </p>
-                      <p className="text-xl font-bold text-blue-900">
-                        {formatTimeRemaining(flashSaleStatus.timeUntilStart)}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {flashSaleStatus.status === 'active' && flashSaleStatus.timeUntilEnd && (
-                    <div className="text-center p-3 bg-green-100 rounded-lg mb-4" data-testid="time-info">
-                      <p className="text-sm text-green-800 mb-1 flex items-center justify-center">
-                        <ClockIcon className="w-4 h-4 mr-2" />
-                        Sale ends in:
-                      </p>
-                      <p className="text-xl font-bold text-green-900">
-                        {formatTimeRemaining(flashSaleStatus.timeUntilEnd)}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Stock Information */}
-                  <div className="text-center" data-testid="stock-info">
-                    <p className="text-sm text-gray-600 mb-1">Available Stock:</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      <span data-testid="current-stock">{flashSaleStatus.currentStock}</span> / <span data-testid="total-stock">{flashSaleStatus.maxStock}</span>
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Sold: <span data-testid="sold-stock">{flashSaleStatus.maxStock - flashSaleStatus.currentStock}</span>
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Product Tabs */}
-              <div className="mb-6">
-                <div className="flex border-b border-gray-200">
-                  {[
-                    { id: 'detail', label: 'Detail' },
-                    { id: 'specifications', label: 'Specifications' },
-                    { id: 'important', label: 'Important Info' },
-                    { id: 'users', label: 'List of Users' }
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      data-testid={tab.id === 'users' ? 'users-tab' : tab.id === 'detail' ? 'main-tab' : `${tab.id}-tab`}
-                      onClick={() => setActiveTab(tab.id as any)}
-                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors relative ${
-                        activeTab === tab.id
-                          ? tab.id === 'users' 
-                            ? 'border-purple-500 text-purple-600'
-                            : 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
-                      } ${
-                        highlightedElement === 'users-tab' && tab.id === 'users' ? 'ring-4 ring-yellow-400 ring-opacity-75 shadow-2xl scale-110 z-50 relative' : ''
-                      }`}
-                    >
-                      {tab.label}
-                      {tab.id === 'users' && (
-                        <>
-                          <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow-lg notification-shake notification-glow" data-testid="notification-badge">
-                            🔔
-                          </span>
-                          {/* Pulsing dot indicator */}
-                          <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-red-500 rounded-full animate-ping" data-testid="pulsing-dot"></span>
-                          <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-                        </>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Tab Content */}
-                <div className="mt-4">
-                  {activeTab === 'detail' && (
-                    <div className="space-y-3" data-testid="main-tab-content">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Condition:</span>
-                        <span className="font-medium">{product?.details?.condition || 'Brand New'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Warranty:</span>
-                        <span className="font-medium">{product?.details?.warranty || '2 Years'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Weight:</span>
-                        <span className="font-medium">{product?.details?.weight || '250g'}</span>
-                      </div>
-                      <div className="pt-3">
-                        <p className="text-gray-700 leading-relaxed">
-                          {product?.description || 'Experience crystal-clear sound with our premium AirPods 3 Pro. Features include active noise cancellation, 30-hour battery life, and premium build quality. Perfect for music lovers and professionals.'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {activeTab === 'specifications' && (
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Bluetooth:</span>
-                        <span className="font-medium">{product?.specification?.bluetooth || '5.2'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Battery Life:</span>
-                        <span className="font-medium">{product?.specification?.battery_life || '30 hours'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Water Resistance:</span>
-                        <span className="font-medium">{product?.specification?.water_resistance || 'IPX4'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Driver Size:</span>
-                        <span className="font-medium">{product?.specification?.driver_size || '10mm'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Frequency Response:</span>
-                        <span className="font-medium">{product?.specification?.frequency_response || '20Hz-20kHz'}</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {activeTab === 'important' && (
-                    <div className="space-y-3">
-                      <div className="p-3 bg-yellow-50 rounded-lg">
-                        <p className="text-sm text-yellow-800 flex items-start">
-                          <WarningIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {product?.important_info?.see_in_ui || 'This is a limited edition product. Only 100 units available worldwide.'}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-800 flex items-start">
-                          <InfoIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {product?.important_info?.compatibility || 'Compatible with all devices supporting Bluetooth 5.0+'}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <p className="text-sm text-green-800 flex items-start">
-                          <CheckIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {product?.important_info?.shipping || 'Free worldwide shipping included'}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-purple-50 rounded-lg">
-                        <p className="text-sm text-purple-800 flex items-start">
-                          <CheckIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                          {product?.important_info?.security || 'Secure payment processing guaranteed'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'users' && (
-                    <div className="space-y-4" data-testid="users-section">
-                      {/* Assessment Reference for Evaluators */}
-                      <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
-                        <h3 className="text-lg font-semibold text-purple-800 mb-2 flex items-center">
-                          <InfoIcon className="w-5 h-5 mr-2" />
-                          Assessment Reference for Evaluators
-                        </h3>
-                        <div className="text-sm text-purple-700 space-y-2">
-                          <p><strong>Purpose:</strong> This tab demonstrates user management capabilities for the flash sale system.</p>
-                          <p><strong>Features:</strong> Create dummy users, validate purchase eligibility, track purchase status.</p>
-                          <p><strong>Technical Implementation:</strong> RESTful API endpoints, database relationships, user validation logic.</p>
-                          <p><strong>Testing:</strong> Use the buttons below to seed users and test the system reset functionality.</p>
+                  {/* Tab Content */}
+                  <div className="mt-4">
+                    {activeTab === 'detail' && (
+                      <div className="space-y-3 tab-content active" data-testid="main-tab-content">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Condition:</span>
+                          <span className="font-medium">{product?.details?.condition || 'Brand New'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Warranty:</span>
+                          <span className="font-medium">{product?.details?.warranty || '2 Years'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Weight:</span>
+                          <span className="font-medium">{product?.details?.weight || '250g'}</span>
+                        </div>
+                        <div className="pt-3">
+                          <p className="text-gray-700 leading-relaxed">
+                            {product?.description ||
+                              'Experience crystal-clear sound with our premium AirPods 3 Pro. Features include active noise cancellation, 30-hour battery life, and premium build quality. Perfect for music lovers and professionals.'}
+                          </p>
                         </div>
                       </div>
+                    )}
 
-                      {/* Prominent Test Badge */}
-                      <div className="p-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl border-2 border-yellow-300 shadow-lg transform hover:scale-105 transition-all duration-300">
-                        <div className="text-center">
-                          <div className="text-3xl font-bold text-white mb-2">🎯</div>
-                          <h3 className="text-xl font-bold text-white mb-2">Click Here to Test!</h3>
-                          <p className="text-yellow-100 text-sm mb-4">
-                            Use the buttons below to test the flash sale system functionality
+                    {activeTab === 'specifications' && (
+                      <div className="space-y-3 tab-content active">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Bluetooth:</span>
+                          <span className="font-medium">{product?.specification?.bluetooth || '5.2'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Battery Life:</span>
+                          <span className="font-medium">{product?.specification?.battery_life || '30 hours'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Water Resistance:</span>
+                          <span className="font-medium">{product?.specification?.water_resistance || 'IPX4'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Driver Size:</span>
+                          <span className="font-medium">{product?.specification?.driver_size || '10mm'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Frequency Response:</span>
+                          <span className="font-medium">{product?.specification?.frequency_response || '20Hz-20kHz'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'important' && (
+                      <div className="space-y-3 tab-content active">
+                        <div className="p-3 bg-yellow-50 rounded-lg">
+                          <p className="text-sm text-yellow-800 flex items-start">
+                            <WarningIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                            {product?.important_info?.see_in_ui || 'This is a limited edition product. Only 100 units available worldwide.'}
                           </p>
-                          <div className="flex justify-center space-x-3">
-                            <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1">
-                              <span className="text-white text-xs font-medium">Seed Users</span>
-                            </div>
-                            <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1">
-                              <span className="text-white text-xs font-medium">Test Purchase</span>
-                            </div>
-                            <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1">
-                              <span className="text-white text-xs font-medium">Reset System</span>
-                            </div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <p className="text-sm text-blue-800 flex items-start">
+                            <InfoIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                            {product?.important_info?.compatibility || 'Compatible with all devices supporting Bluetooth 5.0+'}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <p className="text-sm text-green-800 flex items-start">
+                            <CheckIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                            {product?.important_info?.shipping || 'Free worldwide shipping included'}
+                          </p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                          <p className="text-sm text-purple-800 flex items-start">
+                            <CheckIcon className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                            {product?.important_info?.security || 'Secure payment processing guaranteed'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'users' && (
+                      <div className="space-y-4 tab-content active" data-testid="users-section">
+                        {/* Assessment Reference for Evaluators */}
+                        <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+                          <h3 className="text-lg font-semibold text-purple-800 mb-2 flex items-center">
+                            <InfoIcon className="w-5 h-5 mr-2" />
+                            Assessment Reference for Evaluators
+                          </h3>
+                          <div className="text-sm text-purple-700 space-y-2">
+                            <p><strong>Purpose:</strong> This tab demonstrates user management capabilities for the flash sale system.</p>
+                            <p><strong>Features:</strong> Create dummy users, validate purchase eligibility, track purchase status.</p>
+                            <p><strong>Technical Implementation:</strong> RESTful API endpoints, database relationships, user validation logic.</p>
+                            <p><strong>Testing:</strong> Use the buttons below to seed users and test the system reset functionality.</p>
                           </div>
                         </div>
-                      </div>
 
-                      {/* User Management Controls */}
-                      <div className="flex space-x-3">
-                        <button
-                          onClick={seedUsers}
-                          className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors ${
-                            highlightedElement === 'seed-users-button' ? 'ring-4 ring-yellow-400 ring-opacity-75 shadow-2xl scale-110 z-50 relative' : ''
-                          }`}
-                        >
-                          Seed Dummy Users
-                        </button>
-                        <button
-                          onClick={resetUsers}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
-                        >
-                          Reset & Auto-Seed Users
-                        </button>
-                        <button
-                          onClick={fetchUsers}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-                        >
-                          Refresh List
-                        </button>
-                      </div>
 
-                      {/* System Reset Section */}
-                      <div className="mt-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 rounded-lg border border-red-200">
-                        <h3 className="text-lg font-semibold text-red-800 mb-3 flex items-center">
-                          <WarningIcon className="w-5 h-5 mr-2" />
-                          System Reset
-                        </h3>
-                        <p className="text-sm text-red-700 mb-4">
-                          This will reset the entire system: restore stock to 5 items, clear all purchases, reset user purchase status, and automatically seed fresh users.
-                        </p>
-                        <button
-                          onClick={resetSystem}
-                          data-testid="reset-system-button"
-                          className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
-                        >
-                          🔄 Reset System + Auto-Seed Users
-                        </button>
-                        
-                        {/* Reset Message Display */}
-                        {resetMessage && (
-                          <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200" data-testid="reset-message">
-                            <p className="text-sm text-blue-800 font-medium">
-                              {resetMessage}
+                        {/* Quick Stock Presets */}
+                        <div className="p-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl border-2 border-blue-300 shadow-lg transform hover:scale-105 transition-all duration-300">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-white mb-2">⚡</div>
+                            <h3 className="text-xl font-bold text-white mb-2">Quick Stock Presets</h3>
+                            <p className="text-blue-100 text-sm mb-4">
+                              Instantly set stock levels for stress testing different scenarios
+                            </p>
+                            <div className="flex flex-wrap gap-2 justify-center" data-testid="stock-presets">
+                              <button
+                                onClick={() => handleStockPreset('small')}
+                                disabled={stockPresetLoading === 'small'}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                                  flashSaleStatus?.maxStock === 5
+                                    ? 'bg-blue-500 text-white shadow-lg scale-105'
+                                    : 'bg-white/20 text-white hover:bg-white/30'
+                                } ${stockPresetLoading === 'small' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                data-testid="preset-small"
+                              >
+                                {stockPresetLoading === 'small' ? '...' : 'Small (5)'}
+                              </button>
+                              <button
+                                onClick={() => handleStockPreset('medium')}
+                                disabled={stockPresetLoading === 'medium'}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                                  flashSaleStatus?.maxStock === 100
+                                    ? 'bg-green-500 text-white shadow-lg scale-105'
+                                    : 'bg-white/20 text-white hover:bg-white/30'
+                                } ${stockPresetLoading === 'medium' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                data-testid="preset-medium"
+                              >
+                                {stockPresetLoading === 'medium' ? '...' : 'Medium (100)'}
+                              </button>
+                              <button
+                                onClick={() => handleStockPreset('large')}
+                                disabled={stockPresetLoading === 'large'}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                                  flashSaleStatus?.maxStock === 1000
+                                    ? 'bg-orange-500 text-white shadow-lg scale-105'
+                                    : 'bg-white/20 text-white hover:bg-white/30'
+                                } ${stockPresetLoading === 'large' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                data-testid="preset-large"
+                              >
+                                {stockPresetLoading === 'large' ? '...' : 'Large (1000)'}
+                              </button>
+                              <button
+                                onClick={() => handleStockPreset('extreme')}
+                                disabled={stockPresetLoading === 'extreme'}
+                                className={`px-3 py-1 text-xs font-medium rounded-full transition-all ${
+                                  flashSaleStatus?.maxStock === 10000
+                                    ? 'bg-red-500 text-white shadow-lg scale-105'
+                                    : 'bg-white/20 text-white hover:bg-red-400 hover:text-white'
+                                } ${stockPresetLoading === 'extreme' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                data-testid="preset-extreme"
+                              >
+                                {stockPresetLoading === 'extreme' ? '...' : 'Extreme (10K)'}
+                              </button>
+                              </div>
+                            <p className="text-xs text-blue-100 mt-2 text-center">
+                              Click to instantly set stock for stress testing
                             </p>
                           </div>
-                        )}
-                      </div>
-
-                      {/* Users List */}
-                      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                          <h3 className="text-lg font-semibold text-gray-900">Registered Users</h3>
-                          <p className="text-sm text-gray-600">Total: {users.length} users</p>
                         </div>
-                        
-                        {usersLoading ? (
-                          <div className="p-6 text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
-                            <p className="text-gray-600">Loading users...</p>
+
+                        {/* User Management Controls */}
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={seedUsers}
+                            className={`px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors ${
+                              highlightedElement === 'seed-users-button' ? 'ring-4 ring-yellow-400 ring-opacity-75 shadow-2xl scale-110 z-50 relative' : ''
+                            }`}
+                          >
+                            Seed Dummy Users
+                          </button>
+                          <button
+                            onClick={resetUsers}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Reset & Auto-Seed Users
+                          </button>
+                          <button
+                            onClick={() => fetchUsers(currentPage)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                          >
+                            Refresh List
+                          </button>
+                        </div>
+
+                        {/* System Reset Section */}
+                        <div className="mt-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 rounded-lg border border-red-200">
+                          <h3 className="text-lg font-semibold text-red-800 mb-3 flex items-center">
+                            <WarningIcon className="w-5 h-5 mr-2" />
+                            System Reset
+                          </h3>
+                          <p className="text-sm text-red-700 mb-4">
+                            Choose your reset option: <strong>Reset to Small Stock</strong> will restore stock to 5 items, or <strong>Reset Maintain Stock</strong> will keep current stock level. Both options clear all purchases, reset user purchase status, and automatically seed fresh users.
+                          </p>
+                          <div className="flex space-x-3">
+                            <button
+                              onClick={() => resetSystem(true)}
+                              data-testid="reset-system-button-small"
+                              className="px-4 py-3 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+                            >
+                              Reset to Small Stock (5)
+                            </button>
+                            <button
+                              onClick={() => resetSystem(false)}
+                              data-testid="reset-system-button-maintain"
+                              className="px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+                            >
+                              Reset Maintain Stock
+                            </button>
                           </div>
-                        ) : users.length === 0 ? (
-                          <div className="p-6 text-center text-gray-500">
-                            <p>No users found. Users will be automatically seeded after reset.</p>
+
+                          {/* Reset Message Display */}
+                          {resetMessage && (
+                            <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200" data-testid="reset-message">
+                              <p className="text-sm text-blue-800 font-medium">
+                                {resetMessage}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Users List */}
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                            <h3 className="text-lg font-semibold text-gray-900">Registered Users</h3>
+                            <p className="text-sm text-gray-600">Total: {totalUsers} users (Page {currentPage} of {totalPages})</p>
                           </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Status</th>
-                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {users.map((user) => (
-                                  <tr key={user.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      <div className="flex items-center">
-                                        <div className={`w-3 h-3 rounded-full mr-3 ${
-                                          user.canPurchase ? 'bg-green-400' : 'bg-red-400'
-                                        }`}></div>
-                                        <div>
-                                          <div className="text-sm font-medium text-gray-900">{user.username}</div>
-                                          <div className="text-xs text-gray-500">
-                                            {user.canPurchase ? 'Can Purchase' : 'Cannot Purchase'}
+
+                          {usersLoading ? (
+                            <div className="p-6 text-center loading-enhanced">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                              <p className="text-gray-600">Loading users...</p>
+                            </div>
+                          ) : (Array.isArray(users) && users.length === 0) ? (
+                            <div className="p-6 text-center text-gray-500">
+                              <p>No users found. Users will be automatically seeded after reset.</p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Status</th>
+                                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {Array.isArray(users) && users.map((user) => (
+                                      <tr key={user.id} className="hover:bg-gray-50 user-table-row smooth-transition">
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                          <div className="flex items-center">
+                                            <div className={`w-3 h-3 rounded-full mr-3 ${user.canPurchase ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                                            <div>
+                                              <div className="text-sm font-medium text-gray-900">{user.username}</div>
+                                              <div className="text-xs text-gray-500">
+                                                {user.canPurchase ? 'Can Purchase' : 'Cannot Purchase'}
+                                              </div>
+                                            </div>
                                           </div>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
-                                    <td className="px-4 py-4 whitespace-nowrap">
-                                      {user.hasPurchased ? (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                          <CheckIcon className="w-3 h-3 mr-1" />
-                                          Purchased
-                                        </span>
-                                      ) : (
-                                        <span className="text-xs text-gray-500">Not Purchased</span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      <div className="space-y-2">
-                                        {user.hasPurchased && user.purchaseId && (
-                                          <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
-                                            {user.purchaseId}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap">
+                                          {user.hasPurchased ? (
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 status-badge smooth-transition">
+                                              <CheckIcon className="w-3 h-3 mr-1" />
+                                              Purchased
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs text-gray-500 status-badge smooth-transition">Not Purchased</span>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                          <div className="space-y-2">
+                                            {user.hasPurchased && user.purchaseId && (
+                                              <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
+                                                {user.purchaseId}
+                                              </div>
+                                            )}
+                                            <button
+                                              onClick={async () => {
+                                                await resetPurchaseSectionForUser(user.username);
+                                                setActiveTab('detail');
+                                              }}
+                                              className={`px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded try-user-button animated-button smooth-transition ${
+                                                highlightedElement === 'try-this-user-button' ? 'ring-4 ring-yellow-400 ring-opacity-75 shadow-2xl scale-110 z-50 relative' : ''
+                                              }`}
+                                            >
+                                              Try this user
+                                            </button>
                                           </div>
-                                        )}
-                                        <button
-                                          onClick={async () => {
-                                            await resetPurchaseSectionForUser(user.username);
-                                            setActiveTab('detail');
-                                          }}
-                                          className={`px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded transition-colors ${
-                                            highlightedElement === 'try-this-user-button' ? 'ring-4 ring-yellow-400 ring-opacity-75 shadow-2xl scale-110 z-50 relative' : ''
-                                          }`}
-                                        >
-                                          Try this user
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {/* Pagination */}
+                              {totalPages > 1 && (
+                                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-sm text-gray-700">
+                                      Showing page {currentPage} of {totalPages}
+                                    </div>
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage <= 1}
+                                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        Previous
+                                      </button>
+                                      {(() => {
+                                        const pages = [];
+                                        // Fix: Show exactly 5 pages, always centered around current page
+                                        let startPage = currentPage - 2;
+                                        let endPage = currentPage + 2;
+                                        
+                                        // Adjust boundaries
+                                        if (startPage < 1) {
+                                          startPage = 1;
+                                          endPage = Math.min(5, totalPages);
+                                        }
+                                        if (endPage > totalPages) {
+                                          endPage = totalPages;
+                                          startPage = Math.max(1, totalPages - 4);
+                                        }
+                                        
+                                        for (let i = startPage; i <= endPage; i++) {
+                                          pages.push(
+                                            <button
+                                              key={i}
+                                              onClick={() => handlePageChange(i)}
+                                              className={`px-3 py-1 text-sm font-medium rounded-md ${
+                                                i === currentPage
+                                                  ? 'bg-blue-600 text-white'
+                                                  : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                                              }`}
+                                            >
+                                              {i}
+                                            </button>
+                                          );
+                                        }
+                                        return pages;
+                                      })()}
+                                      <button
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage >= totalPages}
+                                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        Next
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 };
